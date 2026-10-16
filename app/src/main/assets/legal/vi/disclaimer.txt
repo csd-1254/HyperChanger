@@ -1,0 +1,34 @@
+Tuyên bố miễn trừ trách nhiệm pháp lý HyperChanger
+
+Ngày có hiệu lực: 19 tháng 9 năm 2026
+Sửa đổi lần cuối: 19 tháng 9 năm 2026
+
+Vui lòng đọc thông báo này trước khi cài đặt hoặc kích hoạt HyperChanger. Đây là dự án cộng đồng mã nguồn mở độc lập, mang tính thử nghiệm; không do Xiaomi Corporation hoặc bất kỳ công ty liên kết nào của Xiaomi tạo ra, duy trì, chứng thực, tài trợ hay ủy quyền.
+
+1. Môi trường được hỗ trợ
+
+HyperChanger chỉ được thiết kế cho những bản dựng Xiaomi HyperOS 4 cụ thể mà dự án phát hành hỗ trợ, bao gồm một số bản beta hoặc bản dành cho nhà phát triển. Phần mềm không dành cho MIUI, HyperOS 1, 2 hoặc 3, hệ điều hành của nhà sản xuất khác, AOSP hay ROM bên thứ ba. Các lớp, phương thức, tài nguyên riêng và hành vi tiến trình có thể thay đổi giữa các bản dựng. Chạy mô-đun ngoài môi trường được hỗ trợ có thể khiến ứng dụng bị lỗi, thiết bị khởi động lặp, System UI không thể sử dụng hoặc thiết bị không khởi động được.
+
+2. Rủi ro từ quyền root và framework
+
+Mô-đun yêu cầu mở khóa bootloader, quyền root và môi trường LSPosed/Xposed tương thích. Các hook ở cấp hệ thống có thể gây lỗi System UI liên tục, màn hình khóa đen hoặc không phản hồi, thông báo bị hỏng, launcher gặp lỗi, tiêu thụ pin quá mức, quá nhiệt hoặc làm các mô-đun khác mất chức năng. Mở khóa bootloader hoặc lấy quyền root có thể làm giảm bảo mật thiết bị, khiến ứng dụng ngân hàng không hoạt động và ảnh hưởng đến bảo hành của nhà sản xuất.
+
+3. Rủi ro đối với dữ liệu và phần cứng
+
+Bạn chịu trách nhiệm tạo bản sao lưu đầy đủ, độc lập trước khi cài đặt hoặc cấu hình. Khôi phục hệ thống, nạp lại firmware, định dạng, lỗi lưu trữ hoặc lỗi phần mềm có thể phá hủy vĩnh viễn ảnh, tài liệu, danh bạ, tin nhắn, khóa và dữ liệu khác. Hiệu ứng hiển thị bất thường hoặc các tính năng luôn bật có thể làm tăng nhiệt độ, mức tiêu thụ điện, độ hao mòn màn hình hoặc pin. Không sử dụng phần mềm này trên thiết bị mà sự cố có thể gây nguy hiểm cho con người hoặc hoạt động thiết yếu.
+
+4. Không bảo hành; giới hạn trách nhiệm
+
+Phần mềm và tài liệu được cung cấp theo hiện trạng (AS IS) và tùy theo khả năng sẵn có (AS AVAILABLE), không có bất kỳ bảo đảm nào, dù rõ ràng, ngụ ý hay theo luật định, bao gồm tính phù hợp với mục đích cụ thể, khả năng thương mại, độ chính xác, tính sẵn sàng, bảo mật hoặc hoạt động không lỗi. Trong phạm vi tối đa pháp luật cho phép, người bảo trì và người đóng góp không chịu trách nhiệm về tổn thất trực tiếp, gián tiếp, ngẫu nhiên, đặc biệt, mang tính trừng phạt hoặc hệ quả, bao gồm hư hỏng thiết bị, thiệt hại tài sản, gián đoạn kinh doanh, mất dữ liệu hoặc mất quyền truy cập phát sinh từ việc sử dụng, sử dụng sai hoặc không thể sử dụng phần mềm.
+
+5. Dịch vụ bên thứ ba
+
+Các dịch vụ tra cứu lời bài hát tùy chọn, kiểm tra cập nhật, GitHub, LRCLIB, AMLL TTML và giao diện bên thứ ba khác do nhà cung cấp tương ứng kiểm soát. Người bảo trì không bảo đảm tính sẵn có, độ chính xác, tính hợp pháp, tính liên tục hoặc nội dung của chúng, và không chịu trách nhiệm về tranh chấp hay tổn thất phát sinh từ các dịch vụ đó.
+
+6. Hỗ trợ và báo cáo lỗi
+
+Dự án không cam kết khôi phục hoặc sửa chữa từ xa theo hình thức hỗ trợ riêng từng người. Báo cáo lỗi hữu ích nên bao gồm Logcat đã loại bỏ thông tin nhạy cảm, mẫu thiết bị, bản dựng HyperOS chính xác, phiên bản mô-đun, phạm vi đã bật và các bước tái hiện. Hãy xóa dữ liệu cá nhân, mã thông báo, nội dung thông báo và thông tin tài khoản trước khi công khai nhật ký. Báo cáo từ hệ thống không được hỗ trợ hoặc không có đủ bằng chứng có thể bị đóng.
+
+7. Chấp thuận
+
+Bằng việc cài đặt, kích hoạt, cấu hình hoặc sử dụng HyperChanger dưới bất kỳ hình thức nào, bạn xác nhận đã hiểu các rủi ro này và tự chịu trách nhiệm đối với thiết bị, dữ liệu và cách sử dụng phần mềm. Nếu không chấp nhận, đừng cài đặt hoặc kích hoạt mô-đun.
