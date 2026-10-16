@@ -1,0 +1,38 @@
+Thỏa thuận người dùng HyperChanger
+
+Ngày có hiệu lực: 19 tháng 9 năm 2026
+Sửa đổi lần cuối: 19 tháng 9 năm 2026
+
+Thỏa thuận này điều chỉnh việc bạn sử dụng HyperChanger, một mô-đun LSPosed mã nguồn mở dùng để sửa đổi hệ thống Android. Việc cài đặt, kích hoạt, cấu hình hoặc chạy phần mềm đồng nghĩa với việc bạn đã đọc và chấp nhận thỏa thuận này. Nếu không đồng ý, đừng sử dụng phần mềm và hãy gỡ phần mềm khỏi thiết bị.
+
+1. Điều kiện sử dụng và yêu cầu tiên quyết
+
+Bạn phải sử dụng bản dựng Xiaomi HyperOS 4 tương thích, đã mở khóa bootloader, có quyền root và framework LSPosed/Xposed tương thích. Bạn chịu trách nhiệm hiểu rõ việc mở khóa bootloader, root, phạm vi mô-đun, Fastboot, Recovery, sao lưu và cách tắt hoặc gỡ mô-đun nếu Android không thể khởi động. Đừng sử dụng phần mềm này nếu bạn không thể tự khôi phục thiết bị.
+
+2. Hệ thống được hỗ trợ và sử dụng an toàn
+
+Mô-đun không được cấp phép hoặc thiết kế cho MIUI, HyperOS 1–3, hệ thống của nhà sản xuất khác, AOSP hoặc ROM tùy chỉnh không được hỗ trợ. Chỉ chọn các phạm vi cần thiết cho tính năng bạn sử dụng. Không bật tràn lan mọi gói hệ thống. Kiểm tra lại các thay đổi sau khi cập nhật hệ thống và tắt mô-đun trước khi xử lý sự cố gây treo hoặc lỗi.
+
+3. Giấy phép và sở hữu trí tuệ
+
+Dự án được phân phối theo Apache License 2.0. Quyền sao chép, sửa đổi và phân phối lại mã nguồn của bạn chịu sự điều chỉnh của giấy phép và các thông báo đi kèm. Các thành phần từ dự án mã nguồn mở khác vẫn giữ giấy phép và bản quyền ban đầu. Xiaomi, HyperOS, MIUI và các nhãn hiệu khác thuộc về chủ sở hữu tương ứng và chỉ được nhắc đến để mô tả khả năng tương thích; điều đó không hàm ý có sự chứng thực hoặc liên kết chính thức.
+
+4. Hành vi bị cấm
+
+Bạn không được dùng mô-đun để vi phạm pháp luật hoặc quyền của người khác, lấy dữ liệu trái phép, can thiệp vào liên lạc hoặc an ninh mạng, hay phát tán nội dung gây hại. Không được đóng gói lại phần mềm kèm mã độc, phần mềm gián điệp, quảng cáo bắt buộc hoặc plugin không liên quan. Không được trình bày sai dự án mã nguồn mở miễn phí này như sản phẩm chính thức của Xiaomi hoặc bán nó như một sản phẩm độc quyền có thu phí.
+
+5. Nội dung và dịch vụ bên thứ ba
+
+Các nhà cung cấp lời bài hát tùy chọn, GitHub, máy chủ cập nhật và dịch vụ bên ngoài khác có điều khoản và chính sách quyền riêng tư riêng. Bạn chịu trách nhiệm sử dụng hợp pháp nội dung nhận được từ các dịch vụ đó, bao gồm việc tuân thủ bản quyền. Người bảo trì không kiểm soát và không bảo đảm các dịch vụ bên thứ ba.
+
+6. Tính sẵn có và thay đổi
+
+Đây là dự án do tình nguyện viên phát triển. Người bảo trì không cam kết dịch vụ luôn sẵn có, tương thích với mọi thiết bị, hỗ trợ các bản dựng tương lai hoặc cung cấp hỗ trợ kỹ thuật riêng từng người. Dự án có thể sửa đổi, loại bỏ, tạm ngừng hoặc chấm dứt tính năng hay toàn bộ dự án khi cần thiết vì lý do kỹ thuật, an toàn, nguồn lực hoặc pháp lý.
+
+7. Miễn trừ trách nhiệm và luật điều chỉnh
+
+Tuyên bố miễn trừ trách nhiệm pháp lý và Chính sách quyền riêng tư riêng biệt là một phần thông tin điều chỉnh việc sử dụng phần mềm. Phần mềm được cung cấp theo hiện trạng (AS IS). Thỏa thuận này chịu sự điều chỉnh của pháp luật Cộng hòa Nhân dân Trung Hoa, nhưng không hạn chế bất kỳ quyền bắt buộc nào của người tiêu dùng mà pháp luật không cho phép từ bỏ. Nếu một điều khoản không hợp lệ, các điều khoản còn lại vẫn có hiệu lực.
+
+8. Chấp thuận
+
+Bằng việc tiếp tục sử dụng HyperChanger, bạn xác nhận rằng mình hiểu các rủi ro kỹ thuật, đã tạo bản sao lưu phù hợp và chấp nhận thỏa thuận này.
