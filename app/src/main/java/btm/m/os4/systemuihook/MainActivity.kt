@@ -11114,6 +11114,7 @@ private fun builtinLanguageJson(context: android.content.Context, selection: Str
     }
     val languageName = when (selection) {
         "zh" -> "中文"
+        "vi" -> "Tiếng Việt"
         else -> "跟随系统"
     }
     val locale = when (selection) {
