@@ -1,0 +1,39 @@
+Chính sách quyền riêng tư và bảo vệ dữ liệu HyperChanger
+
+Ngày có hiệu lực: 19 tháng 9 năm 2026
+Sửa đổi lần cuối: 19 tháng 9 năm 2026
+
+Chính sách này giải thích cách HyperChanger xử lý thông tin. Dự án tuân theo các nguyên tắc ưu tiên xử lý cục bộ, giảm thiểu dữ liệu và minh bạch.
+
+1. Lưu trữ cục bộ
+
+HyperChanger không vận hành dịch vụ trung tâm để thu thập dấu vân tay thiết bị, số định danh cá nhân hoặc hành vi sử dụng. Cài đặt, tùy chọn giao diện, giá trị chất liệu, cấu hình tiện ích và các tùy chọn khác được lưu trong vùng lưu trữ riêng của ứng dụng trên Android. Hình ảnh, video, logo, cấu hình JSON và tệp lời bài hát đã nhập vẫn nằm trên thiết bị, trừ khi bạn chủ động xuất hoặc chia sẻ. Ứng dụng không âm thầm tải các tệp này lên mạng.
+
+2. Kết nối mạng tùy chọn
+
+Các hook và cấu hình cốt lõi hoạt động ngoại tuyến. Truy cập mạng chỉ được dùng cho những tính năng bạn bật hoặc chủ động yêu cầu:
+
+• Tra cứu lời bài hát trực tuyến gửi tên bài hát đang phát, nghệ sĩ và album đến dịch vụ lời bài hát công khai được chọn qua HTTPS. Tính năng này không chủ động gửi IMEI, MEID, địa chỉ MAC, Android ID, OAID, ICCID, vị trí, danh bạ hoặc thông tin đăng nhập tài khoản.
+• Kiểm tra cập nhật yêu cầu thông tin bản phát hành, ghi chú và liên kết tải xuống từ GitHub hoặc dịch vụ cập nhật được cấu hình. Thông tin mạng thông thường như địa chỉ IP và User-Agent được nhà cung cấp mạng xử lý. Dự án không dùng thông tin đó để nhận dạng hoặc lập hồ sơ người dùng.
+
+Bạn có thể tắt tra cứu lời bài hát trực tuyến và kiểm tra cập nhật tự động. Khi đó, ứng dụng có thể hoạt động mà không thực hiện các yêu cầu mạng này.
+
+3. Quyền truy cập và quyền đặc biệt
+
+Quyền root chỉ được dùng cho thao tác khởi động lại phạm vi do người dùng yêu cầu hoặc các thao tác cấu hình liên quan. Ứng dụng không dùng root để âm thầm tìm kiếm bộ nhớ riêng tư, sửa dữ liệu không liên quan của ứng dụng khác, làm suy yếu cơ chế bảo mật hoặc cài cửa hậu tồn tại lâu dài. Quyền truy cập tệp và phương tiện chỉ giới hạn ở các tệp bạn chọn để nhập, xuất, xem trước hoặc chia sẻ. Quyền mạng chỉ được dùng cho các dịch vụ nêu trên.
+
+4. Không quảng cáo hoặc phân tích
+
+Dự án mã nguồn mở không tích hợp SDK quảng cáo, phân tích thương mại, thành phần chấm điểm tín dụng hoặc thư viện theo dõi hành vi. Người bảo trì không bán, cho thuê, trao đổi hoặc chia sẻ dữ liệu ứng dụng với đơn vị môi giới dữ liệu, nhà quảng cáo hay bên thứ ba không liên quan.
+
+5. Nhật ký và nội dung do người dùng gửi
+
+Nhật ký Android có thể chứa nội dung thông báo, tên gói ứng dụng, một phần dữ liệu clipboard, tên tài khoản, địa chỉ, mã thông báo hoặc thông tin nhạy cảm khác. Trước khi gửi nhật ký lên GitHub hoặc nơi công khai khác, bạn có trách nhiệm kiểm tra và loại bỏ dữ liệu cá nhân. Thông tin bạn tự nguyện đăng công khai có thể được người khác xem và chịu sự điều chỉnh của chính sách dịch vụ nơi đăng.
+
+6. Kiểm soát và xóa dữ liệu
+
+Bạn có thể tắt các chức năng trực tuyến tùy chọn bất cứ lúc nào. Xóa dữ liệu lưu trữ của ứng dụng sẽ xóa tùy chọn cục bộ và tệp riêng tư của ứng dụng. Gỡ cài đặt sẽ xóa dữ liệu riêng của ứng dụng, ngoại trừ các tệp bạn chủ động xuất sang bộ nhớ dùng chung hoặc dịch vụ khác. Bạn quyết định có giữ lại các tệp đã xuất đó hay không.
+
+7. Thay đổi và liên hệ
+
+Chính sách này có thể thay đổi khi HyperOS, tính năng dự án hoặc yêu cầu pháp lý thay đổi. Phiên bản hiện hành được cung cấp cùng ứng dụng và ghi chú phát hành. Bạn có thể gửi câu hỏi hoặc mối quan ngại về quyền riêng tư thông qua kho GitHub công khai của dự án.
