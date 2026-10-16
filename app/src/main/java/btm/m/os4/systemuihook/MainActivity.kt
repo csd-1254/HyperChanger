@@ -235,14 +235,14 @@ private fun languageStrings(
     selection: String = prefs.getString("selected", "system") ?: "system",
 ): Map<String, String> = runCatching {
     if (selection == "system") return@runCatching builtinLanguageStrings(context, systemLanguage(context))
-    if (selection in setOf("zh", "en", "ja")) return@runCatching builtinLanguageStrings(context, selection)
+    if (selection in setOf("zh", "en", "ja", "vi")) return@runCatching builtinLanguageStrings(context, selection)
     val pack = loadLanguagePacks(prefs).firstOrNull { it.name == selection } ?: return@runCatching emptyMap()
     val objectStrings = JSONObject(pack.json).optJSONObject("strings") ?: return@runCatching emptyMap()
     buildMap { objectStrings.keys().forEach { key -> put(key, objectStrings.optString(key)) } }
 }.getOrDefault(emptyMap())
 
 private fun builtinLanguageStrings(context: android.content.Context, language: String): Map<String, String> {
-    if (language !in setOf("en", "ja")) return emptyMap()
+    if (language !in setOf("en", "ja", "vi")) return emptyMap()
     return runCatching {
         val json = context.assets.open("languages/$language.json").bufferedReader().use { it.readText() }
         val strings = JSONObject(json).getJSONObject("strings")
@@ -2519,6 +2519,7 @@ private fun SettingsHome(
                     "zh" -> tr("chinese", "中文")
                     "en" -> tr("english", "English")
                     "ja" -> tr("japanese", "日本語")
+                    "vi" -> "Tiếng Việt"
                     else -> loadLanguagePacks(languagePrefs).firstOrNull { it.name == selectedLanguage }?.name ?: selectedLanguage
                 }
                 ArrowPreference(title = tr("language", "语言"), summary = selectedLanguageSummary, onClick = { open(PageId.LANGUAGE) })
@@ -10115,10 +10116,11 @@ private fun legalLanguage(context: Context): String {
     val prefs = context.getSharedPreferences("languages", Context.MODE_PRIVATE)
     val selected = prefs.getString("selected", "system") ?: "system"
     return when {
-        selected == "en" || selected == "ja" || selected == "zh" -> selected
+        selected == "en" || selected == "ja" || selected == "zh" || selected == "vi" -> selected
         selected == "system" -> when (systemLanguage(context)) {
             "en" -> "en"
             "ja" -> "ja"
+            "vi" -> "vi"
             else -> "zh"
         }
         else -> "zh"
@@ -10751,6 +10753,7 @@ private fun applyLanguageSelection(
         "zh" -> "zh-CN"
         "en" -> "en"
         "ja" -> "ja"
+        "vi" -> "vi"
         else -> packs.firstOrNull { it.name == selection }?.let { pack ->
             runCatching { JSONObject(pack.json).optString("locale") }.getOrDefault("")
         }.orEmpty()
@@ -10806,6 +10809,7 @@ private fun LanguagePage(back: () -> Unit) {
         LanguagePack(tr("chinese", "中文"), "btm_m", builtinLanguageJson(context, "zh"), builtIn = true, selection = "zh"),
         LanguagePack(tr("english", "English"), "btm_m", builtinLanguageJson(context, "en"), builtIn = true, selection = "en"),
         LanguagePack(tr("japanese", "日本語"), "btm_m", builtinLanguageJson(context, "ja"), builtIn = true, selection = "ja"),
+        LanguagePack("Tiếng Việt", "csd-1254", builtinLanguageJson(context, "vi"), builtIn = true, selection = "vi"),
     )
     fun select(pack: LanguagePack) {
         selected = pack.selection
@@ -11103,7 +11107,7 @@ private fun exampleLanguageJson(context: android.content.Context): String = runC
 }
 
 private fun builtinLanguageJson(context: android.content.Context, selection: String): String {
-    if (selection == "en" || selection == "ja") {
+    if (selection == "en" || selection == "ja" || selection == "vi") {
         return runCatching {
             context.assets.open("languages/$selection.json").bufferedReader().use { it.readText() }
         }.getOrDefault("{}")
@@ -11112,7 +11116,11 @@ private fun builtinLanguageJson(context: android.content.Context, selection: Str
         "zh" -> "中文"
         else -> "跟随系统"
     }
-    val locale = if (selection == "zh") "zh-CN" else ""
+    val locale = when (selection) {
+        "zh" -> "zh-CN"
+        "vi" -> "vi"
+        else -> ""
+    }
     return JSONObject()
         .put("languageName", languageName)
         .put("creator", "btm_m")
