@@ -3,6 +3,7 @@
 package btm.m.os4.systemuihook
 
 import btm.m.os4.systemuihook.newnotificationcenter.IosNotificationCenterSettingsStore
+import btm.m.os4.systemuihook.newnotificationcenter.IosNotificationBottomOffsetSettingsStore
 
 import android.app.Activity
 import android.app.DownloadManager
@@ -213,6 +214,7 @@ class MainActivity : ComponentActivity() {
 
 private enum class Tab { CATEGORY, SETTINGS }
 
+private val LocalNotificationSettingsChanged = compositionLocalOf<() -> Unit> { {} }
 private val LocalPageBackSuppressed = compositionLocalOf<(Boolean) -> Unit> { {} }
 private val LocalLanguageChanged = compositionLocalOf<() -> Unit> { {} }
 val LocalDialogBackdrop = compositionLocalOf<Backdrop?> { null }
@@ -268,12 +270,173 @@ private enum class PageId {
     SHADE_CONTROL_CENTER_ELEMENTS,
     SHADE_NOTIFICATION_BACKGROUND,
     SHADE_CONTROL_CENTER_BACKGROUND,
-    GESTURE_HANDLE_STYLE, DESKTOP,
-    ISLAND, STATUS, STATUS_SIGNAL_CUSTOMIZATION, STATUS_SIGNAL_TUNING, CONTROL, LOCK, LOCKSCREEN_CAPSULE, LOCKSCREEN_WIDGET_EDITOR, LOCKSCREEN_WIDGET_BACKGROUND, LYRIC_LIBRARY, RASTER_WALLPAPER, SUPER_XIAOAI, CAMERA, CAMERA_PALETTE, SYSTEM_UPDATE, SYSTEM_SETTINGS, DEVICE_PROFILE,
+    GESTURE_HANDLE_STYLE, DESKTOP, DESKTOP_MATERIAL,
+    ISLAND, UNLOCK_ISLAND, NOTIFICATION_RESTRICTIONS, NOTIFICATION_MEDIA_CARD, STATUS, STATUS_SIGNAL_CUSTOMIZATION, STATUS_SIGNAL_TUNING, CONTROL, LOCK, LOCKSCREEN_CAPSULE, LOCKSCREEN_WIDGET_EDITOR, LOCKSCREEN_WIDGET_BACKGROUND, LYRIC_LIBRARY, RASTER_WALLPAPER, SUPER_XIAOAI, CAMERA, CAMERA_PALETTE, SYSTEM_UPDATE, SYSTEM_SETTINGS, DEVICE_PROFILE,
     SETTINGS_APPEARANCE_HOME, SETTINGS_APPEARANCE_DEVICE, TUTORIAL_DEVICE_CARD, ABOUT, LICENSE, LANGUAGE, DONATE, OPEN, CONTRIBUTORS,
     LEGAL_DISCLAIMER, LEGAL_PRIVACY, LEGAL_USER_AGREEMENT,
     SOFTWARE_UPDATE, UPDATE_LOG, REAR_SCREEN, REAR_CUSTOM_CENTER, REAR_MUSIC_APPS, OTHER, APP_NAVIGATION, RESTART_SCOPES, DISCLAIMER, SIMULATE_MEDIA_NOTIFICATION,
 }
+
+private data class CategorySearchItem(
+    val title: String,
+    val description: String,
+    val scopes: Set<ScopeApplication>,
+    val page: PageId,
+)
+
+private data class CategoryPageEntry(
+    val title: String,
+    val page: PageId,
+)
+
+private fun categorySearchItems(): List<CategorySearchItem> = listOf(
+    CategorySearchItem(
+        tr("系统界面", "系统界面"),
+        tr("category_search_system_ui_description", "调整通知、控制中心、状态栏和手势提示线。"),
+        setOf(ScopeApplication.SYSTEM_UI),
+        PageId.SHADE,
+    ),
+    CategorySearchItem(
+        tr("桌面", "桌面"),
+        tr("category_search_desktop_description", "调整桌面、文件夹、Dock 和最近任务。"),
+        setOf(ScopeApplication.DESKTOP),
+        PageId.DESKTOP,
+    ),
+    CategorySearchItem(
+        tr("通知与超级岛", "通知与超级岛"),
+        tr("category_search_island_description", "调整通知下沉、指纹图标和超级岛相关功能。"),
+        setOf(ScopeApplication.SYSTEM_UI),
+        PageId.ISLAND,
+    ),
+    CategorySearchItem(
+        tr("状态栏与控制中心", "状态栏与控制中心"),
+        tr("category_search_status_description", "调整状态栏图标、信号显示和控制中心布局。"),
+        setOf(ScopeApplication.SYSTEM_UI),
+        PageId.STATUS,
+    ),
+    CategorySearchItem(
+        tr("锁屏", "锁屏"),
+        tr("category_search_lockscreen_description", "调整锁屏时钟、壁纸、小组件、歌词和锁屏胶囊。"),
+        setOf(ScopeApplication.SYSTEM_UI, ScopeApplication.AOD),
+        PageId.LOCK,
+    ),
+    CategorySearchItem(
+        tr("超级小爱输入法", "超级小爱输入法"),
+        tr("category_search_xiaoai_description", "移除超级小爱输入法的功能限制。"),
+        setOf(ScopeApplication.SUPER_XIAOAI_IME),
+        PageId.SUPER_XIAOAI,
+    ),
+    CategorySearchItem(
+        tr("相机与相册编辑", "相机与相册编辑"),
+        tr("category_search_camera_description", "调整相机、相册和媒体编辑器的功能。"),
+        setOf(ScopeApplication.CAMERA, ScopeApplication.GALLERY, ScopeApplication.MEDIA_EDITOR),
+        PageId.CAMERA,
+    ),
+    CategorySearchItem(
+        tr("系统更新", "系统更新"),
+        tr("category_search_update_description", "阻止自动更新检查并调整系统更新行为。"),
+        setOf(ScopeApplication.SYSTEM_UPDATE),
+        PageId.SYSTEM_UPDATE,
+    ),
+    CategorySearchItem(
+        tr("系统设置", "系统设置"),
+        tr("category_search_settings_description", "调整设置应用首页、设备信息和外观。"),
+        setOf(ScopeApplication.SETTINGS),
+        PageId.SYSTEM_SETTINGS,
+    ),
+    CategorySearchItem(
+        tr("背屏", "背屏"),
+        tr("category_search_rear_screen_description", "解锁和自定义背屏应用、壁纸与媒体控件。"),
+        setOf(ScopeApplication.SUBSCREEN_CENTER, ScopeApplication.THEME_MANAGER, ScopeApplication.PERSONAL_ASSISTANT),
+        PageId.REAR_SCREEN,
+    ),
+    CategorySearchItem(
+        tr("其他", "其他"),
+        tr("category_search_other_description", "调整屏幕录制、健康和小米互传等功能。"),
+        setOf(ScopeApplication.SCREEN_RECORDER, ScopeApplication.XIAOMI_HEALTH, ScopeApplication.AIRDROP),
+        PageId.OTHER,
+    ),
+    CategorySearchItem(
+        tr("iosNotificationCenter", "iOS 风格通知中心"),
+        tr("iosNotificationCenterSummary", "下拉时展示圆角壁纸面板、锁屏时钟及景深效果。动态壁纸暂不支持。"),
+        setOf(ScopeApplication.SYSTEM_UI),
+        PageId.SHADE,
+    ),
+    CategorySearchItem(
+        tr("iosNotificationHideClear", "隐藏通知中心清除按钮"),
+        tr("iosNotificationHideClearSummary", "隐藏通知中心底部的清除按钮"),
+        setOf(ScopeApplication.SYSTEM_UI),
+        PageId.SHADE,
+    ),
+    CategorySearchItem(
+        tr("controlCenterBigClock", "在控制中心顶栏日期之上添加大时钟"),
+        tr("category_search_control_center_clock_description", "在控制中心日期上方显示可自定义的大时钟。"),
+        setOf(ScopeApplication.SYSTEM_UI),
+        PageId.STATUS,
+    ),
+    CategorySearchItem(
+        tr("controlCenterCarrierCustom", "自定义运营商文本"),
+        tr("category_search_carrier_description", "自定义或隐藏状态栏中的运营商名称。"),
+        setOf(ScopeApplication.SYSTEM_UI),
+        PageId.STATUS,
+    ),
+    CategorySearchItem(
+        tr("全局隐藏手势提示线", "全局隐藏手势提示线"),
+        tr("category_search_gesture_description", "隐藏系统底部的手势提示线，也可以单独调整其样式。"),
+        setOf(ScopeApplication.SYSTEM_UI),
+        PageId.SHADE,
+    ),
+    CategorySearchItem(
+        tr("为桌面添加 Dock", "为桌面添加 Dock"),
+        tr("category_search_dock_description", "在桌面底部添加 Dock，需要重启桌面后生效。"),
+        setOf(ScopeApplication.DESKTOP),
+        PageId.DESKTOP,
+    ),
+    CategorySearchItem(
+        tr("锁屏胶囊", "锁屏胶囊"),
+        tr("category_search_capsule_description", "在锁屏上显示媒体和通知胶囊。"),
+        setOf(ScopeApplication.SYSTEM_UI, ScopeApplication.AOD),
+        PageId.LOCKSCREEN_CAPSULE,
+    ),
+    CategorySearchItem(
+        tr("锁屏小组件", "锁屏小组件"),
+        tr("category_search_widget_description", "编辑锁屏小组件、背景和设备名称。"),
+        setOf(ScopeApplication.SYSTEM_UI, ScopeApplication.AOD),
+        PageId.LOCKSCREEN_WIDGET_EDITOR,
+    ),
+    CategorySearchItem(
+        tr("光栅壁纸", "光栅壁纸"),
+        tr("category_search_raster_description", "随手机倾斜在多张图片间切换。"),
+        setOf(ScopeApplication.SYSTEM_UI, ScopeApplication.WALLPAPER),
+        PageId.RASTER_WALLPAPER,
+    ),
+    CategorySearchItem(
+        tr("自定义背屏中心", "自定义背屏中心"),
+        tr("category_search_rear_center_description", "查看和管理已导入的自定义背屏应用。"),
+        setOf(ScopeApplication.SUBSCREEN_CENTER),
+        PageId.REAR_CUSTOM_CENTER,
+    ),
+    CategorySearchItem(
+        tr("相机调色板", "相机调色板"),
+        tr("category_search_camera_palette_description", "自定义相机取景器中的调色板和色彩保护。"),
+        setOf(ScopeApplication.CAMERA, ScopeApplication.GALLERY, ScopeApplication.MEDIA_EDITOR),
+        PageId.CAMERA_PALETTE,
+    ),
+    CategorySearchItem(
+        tr("应用底部导航", "应用底部导航"),
+        tr("category_search_app_navigation_description", "为支持的应用自定义底部导航样式。"),
+        setOf(
+            ScopeApplication.APPLE_MUSIC,
+            ScopeApplication.WEIBO,
+            ScopeApplication.XIAOHONGSHU,
+            ScopeApplication.XIAOMI_STORE,
+            ScopeApplication.XIAOMI_WALLET,
+            ScopeApplication.XIAOMI_HEALTH,
+            ScopeApplication.LUCKIN_COFFEE,
+        ),
+        PageId.APP_NAVIGATION,
+    ),
+)
 
 private data class CustomRearScreenApp(
     val productId: String,
@@ -367,6 +530,12 @@ private fun Root(
     var dockSettings by remember { mutableStateOf(dockStore.settings) }
     val homeRecentsStore = remember(context) { HomeRecentsSettingsStore(context) }
     var homeRecentsSettings by remember { mutableStateOf(homeRecentsStore.settings) }
+    val homeMultiSplitStore = remember(context) { HomeMultiSplitSettingsStore(context) }
+    var homeMultiSplitSettings by remember { mutableStateOf(homeMultiSplitStore.settings) }
+    val homeFolderStore = remember(context) { HomeFolderSettingsStore(context) }
+    var homeFolderSettings by remember { mutableStateOf(homeFolderStore.settings) }
+    val homeMaterialStore = remember(context) { HomeMaterialSettingsStore(context) }
+    var homeMaterialSettings by remember { mutableStateOf(homeMaterialStore.settings) }
     var pendingRestartTargets by remember { mutableStateOf(emptySet<ScopeApplication>()) }
     val markRestartTargets: (Set<ScopeApplication>) -> Unit = { targets ->
         if (targets.isNotEmpty()) pendingRestartTargets = pendingRestartTargets + targets
@@ -533,6 +702,8 @@ private fun Root(
         }
     }
     fun importModulePresetPayload(payload: String) {
+        val previousNotificationSettings = context.getSharedPreferences(REMOTE_PREFERENCE_GROUP, Context.MODE_PRIVATE).toNotificationIslandSettings()
+        val previousWidthSettings = readIslandWidthSettings(context.getSharedPreferences(REMOTE_PREFERENCE_GROUP, Context.MODE_PRIVATE))
         val previousSettings = hooks.settings
         val previousLockscreenCapsule = lockscreenCapsules.settings
         val previousCameras = cameras.settings
@@ -540,6 +711,10 @@ private fun Root(
         val previousAppearance = appearances.settings
         val previousMusicWhitelist = musicStore.apps
         val previousDockSettings = dockStore.settings
+        val previousHomeRecentsSettings = homeRecentsStore.settings
+        val previousHomeMultiSplitSettings = homeMultiSplitStore.settings
+        val previousHomeFolderSettings = homeFolderStore.settings
+        val previousHomeMaterialSettings = homeMaterialStore.settings
         runCatching {
             ModulePresetCodec.import(context, service, payload)
             hooks.reload()
@@ -550,6 +725,9 @@ private fun Root(
             musicStore.reload()
             dockStore.reload()
             homeRecentsStore.reload()
+            homeMultiSplitStore.reload()
+            homeFolderStore.reload()
+            homeMaterialStore.reload()
             settings = hooks.settings
             lockscreenCapsuleSettings = lockscreenCapsules.settings
             cameraSettings = cameras.settings
@@ -558,8 +736,23 @@ private fun Root(
             musicWhitelist = musicStore.apps
             dockSettings = dockStore.settings
             homeRecentsSettings = homeRecentsStore.settings
+            homeMultiSplitSettings = homeMultiSplitStore.settings
+            homeFolderSettings = homeFolderStore.settings
+            homeMaterialSettings = homeMaterialStore.settings
+            stageHomeRecentsNativeConfig(
+                context,
+                homeRecentsSettings,
+                homeFolderSettings,
+                homeMaterialSettings,
+                readHomeNativeDockSettings(context.getSharedPreferences(REMOTE_PREFERENCE_GROUP, Context.MODE_PRIVATE)),
+                homeMultiSplitSettings,
+            )
         }.onSuccess {
             markRestartTargets(suggestedScopesForHookChange(previousSettings, settings))
+            val preferences = context.getSharedPreferences(REMOTE_PREFERENCE_GROUP, Context.MODE_PRIVATE)
+            if (previousNotificationSettings != preferences.toNotificationIslandSettings() || previousWidthSettings != readIslandWidthSettings(preferences)) {
+                markRestartTargets(setOf(ScopeApplication.SYSTEM_UI))
+            }
             if (previousLockscreenCapsule != lockscreenCapsuleSettings) {
                 markRestartTargets(setOf(ScopeApplication.SYSTEM_UI, ScopeApplication.AOD))
             }
@@ -573,6 +766,9 @@ private fun Root(
                 markRestartTargets(setOf(ScopeApplication.SUBSCREEN_CENTER))
             }
             if (previousDockSettings != dockSettings) markRestartTargets(setOf(ScopeApplication.DESKTOP))
+            if (previousHomeRecentsSettings != homeRecentsSettings || previousHomeMultiSplitSettings != homeMultiSplitSettings || previousHomeFolderSettings != homeFolderSettings || previousHomeMaterialSettings != homeMaterialSettings) {
+                markRestartTargets(setOf(ScopeApplication.DESKTOP))
+            }
             Toast.makeText(context, tr("预设已导入", "预设已导入"), Toast.LENGTH_SHORT).show()
         }.onFailure {
             Toast.makeText(context, tr("导入失败", "导入失败"), Toast.LENGTH_SHORT).show()
@@ -633,15 +829,22 @@ private fun Root(
             deviceProfiles.syncRemote(it)
             appearances.syncRemote(it)
             airDrop.syncRemote(it)
+            IslandWidthSettingsStore(context).syncRemote(it)
+            NotificationIslandSettingsStore(context).syncRemote(it)
             ControlCenterHeaderHeightSettingsStore(context).syncRemote(it)
+            IosNotificationBottomOffsetSettingsStore(context).syncRemote(it)
             ControlCenterCarrierSettingsStore(context).syncRemote(it)
             ControlCenterClockSettingsStore(context).syncRemote(it)
             IslandSmoothingSettingsStore(context).syncRemote(it)
             IslandSpacingSettingsStore(context).syncRemote(it)
+            DynamicIslandAppearanceSettingsStore(context).syncRemote(it)
             LockscreenFaceUnlockSettingsStore(context).syncRemote(it)
             musicStore.syncRemote(it)
             dockStore.syncRemote(it)
             homeRecentsStore.syncRemote(it)
+            homeMultiSplitStore.syncRemote(it)
+            homeFolderStore.syncRemote(it)
+            homeMaterialStore.syncRemote(it)
             settings = hooks.settings
             navigationSettings = navigation.settings
             lockscreenCapsuleSettings = lockscreenCapsules.settings
@@ -652,6 +855,9 @@ private fun Root(
             musicWhitelist = musicStore.apps
             dockSettings = dockStore.settings
             homeRecentsSettings = homeRecentsStore.settings
+            homeMultiSplitSettings = homeMultiSplitStore.settings
+            homeFolderSettings = homeFolderStore.settings
+            homeMaterialSettings = homeMaterialStore.settings
         }
     }
     MiuixTheme(controller = controller) {
@@ -661,6 +867,7 @@ private fun Root(
         SideEffect { activeLanguageStrings = strings }
         CompositionLocalProvider(
             LocalLanguageChanged provides { languageRevision++ },
+            LocalNotificationSettingsChanged provides { markRestartTargets(setOf(ScopeApplication.SYSTEM_UI)) },
         ) {
         AnimatedContent(
             targetState = showOobe,
@@ -699,7 +906,7 @@ private fun Root(
         } else {
         Shell(
             settings, navigationSettings, lockscreenCapsuleSettings, cameraSettings, deviceProfile, appearance, musicWhitelist, screenRecorder, airDropSettings,
-            dockSettings, homeRecentsSettings, service,
+            dockSettings, homeRecentsSettings, homeFolderSettings, homeMaterialSettings, service,
             update = { transform ->
                 val before = hooks.settings
                 hooks.update(service, transform)
@@ -733,6 +940,23 @@ private fun Root(
                 } else if (!staged) {
                     Toast.makeText(context, tr("写入桌面配置失败，请检查 Root 权限", "写入桌面配置失败，请检查 Root 权限"), Toast.LENGTH_LONG).show()
                 }
+            },
+            updateHomeFolder = { transform ->
+                val before = homeFolderStore.settings
+                val staged = homeFolderStore.update(service, transform)
+                homeFolderSettings = homeFolderStore.settings
+                if (staged && before != homeFolderSettings) {
+                    markRestartTargets(setOf(ScopeApplication.DESKTOP))
+                } else if (!staged) {
+                    Toast.makeText(context, tr("写入桌面配置失败，请检查 Root 权限", "写入桌面配置失败，请检查 Root 权限"), Toast.LENGTH_LONG).show()
+                }
+            },
+            updateHomeMaterial = { transform ->
+                val before = homeMaterialStore.settings
+                val staged = homeMaterialStore.update(service, transform)
+                homeMaterialSettings = homeMaterialStore.settings
+                if (staged && before != homeMaterialSettings) markRestartTargets(setOf(ScopeApplication.DESKTOP))
+                else if (!staged) Toast.makeText(context, tr("写入桌面配置失败，请检查 Root 权限", "写入桌面配置失败，请检查 Root 权限"), Toast.LENGTH_LONG).show()
             },
             updateCamera = { transform ->
                 val before = cameras.settings
@@ -904,12 +1128,16 @@ private fun Shell(
     airDropSettings: AirDropSettings,
     dockSettings: DockSettings,
     homeRecentsSettings: HomeRecentsSettings,
+    homeFolderSettings: HomeFolderSettings,
+    homeMaterialSettings: HomeMaterialSettings,
     service: XposedService?,
     update: ((HookSettings) -> HookSettings) -> Unit,
     updateLockscreenCapsule: ((LockscreenCapsuleSettings) -> LockscreenCapsuleSettings) -> Unit,
     updateNavigation: ((ModuleNavigationSettings) -> ModuleNavigationSettings) -> Unit,
     updateDock: ((DockSettings) -> DockSettings) -> Unit,
     updateHomeRecents: ((HomeRecentsSettings) -> HomeRecentsSettings) -> Unit,
+    updateHomeFolder: ((HomeFolderSettings) -> HomeFolderSettings) -> Unit,
+    updateHomeMaterial: ((HomeMaterialSettings) -> HomeMaterialSettings) -> Unit,
     updateCamera: ((CameraSettings) -> CameraSettings) -> Unit,
     updateDeviceProfile: ((DeviceProfileSettings) -> DeviceProfileSettings) -> Unit,
     updateAppearance: ((SettingsAppearanceSettings) -> SettingsAppearanceSettings) -> Unit,
@@ -1036,8 +1264,8 @@ private fun Shell(
             LocalPageBackSuppressed provides if (isTop) ({ value -> suppressPageBack = value }) else ({ }),
         ) {
             Detail(
-                detailPage, settings, lockscreenCapsuleSettings, cameras, deviceProfile, appearance, musicWhitelist, dockSettings, homeRecentsSettings, airDropSettings,
-                update, updateLockscreenCapsule, updateDock, updateHomeRecents, updateCamera,
+                detailPage, settings, lockscreenCapsuleSettings, cameras, deviceProfile, appearance, musicWhitelist, dockSettings, homeRecentsSettings, homeFolderSettings, homeMaterialSettings, airDropSettings,
+                update, updateLockscreenCapsule, updateDock, updateHomeRecents, updateHomeFolder, updateHomeMaterial, updateCamera,
                 updateDeviceProfile, updateAppearance, updateMusicWhitelist, presetActions, updateAirDrop,
                 openPage = openNestedPage, back = dismissPage,
                 onDebugMode = { showDebug = true }, captcha = captcha,
@@ -1223,7 +1451,7 @@ private fun BottomBar(
     LaunchedEffect(tab) { index.intValue = tab.ordinal }
     val tabs = Tab.entries.mapIndexed { i, item ->
         val title = if (item == Tab.CATEGORY) {
-            tr("tab_category", tr("分类", "分类"))
+            tr("tab_home", tr("首页", "首页"))
         } else {
             tr("tab_settings", tr("设置", "设置"))
         }
@@ -1254,28 +1482,215 @@ private fun BottomBar(
 private fun CategoryHome(
     connected: Boolean,
     open: (PageId) -> Unit,
-) = AppPage(
-    "HyperChanger",
-    actions = {
-        GlassToolbarIconButton(
-            icon = MiuixIcons.Regular.Refresh,
-            description = tr("重启作用域应用", "重启作用域应用"),
-            onClick = { open(PageId.RESTART_SCOPES) },
-        )
-    },
-) { padding, scroll ->
-    AppList(padding, scroll) {
-        item { Entry(tr("\u7cfb\u7edf\u754c\u9762", "\u7cfb\u7edf\u754c\u9762"), enabled = connected) { open(PageId.SHADE) } }
-        item { Entry(tr("桌面", "桌面"), enabled = connected) { open(PageId.DESKTOP) } }
-        item { Entry(tr("\u901a\u77e5\u4e0e\u8d85\u7ea7\u5c9b", "\u901a\u77e5\u4e0e\u8d85\u7ea7\u5c9b"), enabled = connected) { open(PageId.ISLAND) } }
-        item { Entry(tr("\u72b6\u6001\u680f\u4e0e\u63a7\u5236\u4e2d\u5fc3", "\u72b6\u6001\u680f\u4e0e\u63a7\u5236\u4e2d\u5fc3"), enabled = connected) { open(PageId.STATUS) } }
-        item { Entry(tr("\u9501\u5c4f", "\u9501\u5c4f"), enabled = connected) { open(PageId.LOCK) } }
-        item { Entry(tr("\u8d85\u7ea7\u5c0f\u7231\u8f93\u5165\u6cd5", "\u8d85\u7ea7\u5c0f\u7231\u8f93\u5165\u6cd5"), enabled = connected) { open(PageId.SUPER_XIAOAI) } }
-        item { Entry(tr("\u76f8\u673a\u4e0e\u76f8\u518c\u7f16\u8f91", "\u76f8\u673a\u4e0e\u76f8\u518c\u7f16\u8f91"), enabled = connected) { open(PageId.CAMERA) } }
-        item { Entry(tr("\u7cfb\u7edf\u66f4\u65b0", "\u7cfb\u7edf\u66f4\u65b0"), enabled = connected) { open(PageId.SYSTEM_UPDATE) } }
-        item { Entry(tr("\u7cfb\u7edf\u8bbe\u7f6e", "\u7cfb\u7edf\u8bbe\u7f6e"), enabled = connected) { open(PageId.SYSTEM_SETTINGS) } }
-        item { Entry(tr("\u80cc\u5c4f", "\u80cc\u5c4f"), enabled = connected) { open(PageId.REAR_SCREEN) } }
-        item { Entry(tr("\u5176\u4ed6", "\u5176\u4ed6"), enabled = connected) { open(PageId.OTHER) } }
+) {
+    var query by rememberSaveable { mutableStateOf("") }
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val searchItems = categorySearchItems()
+    val normalizedQuery = query.trim().lowercase(Locale.getDefault())
+    val filteredItems = if (normalizedQuery.isBlank()) {
+        emptyList()
+    } else {
+        searchItems.filter { item ->
+            buildString {
+                append(item.title)
+                append('\n')
+                append(item.description)
+                item.scopes.forEach { scope ->
+                    append('\n')
+                    append(tr(scope.title, scope.title))
+                    append('\n')
+                    append(scope.packageName)
+                }
+            }.lowercase(Locale.getDefault()).contains(normalizedQuery)
+        }
+    }
+    val groupedItems = filteredItems
+        .flatMap { item -> item.scopes.map { scope -> scope to item } }
+        .groupBy({ it.first }, { it.second })
+        .mapValues { (_, items) -> items.distinctBy { it.title to it.page } }
+
+    AppPage(
+        "HyperChanger",
+        actions = {
+            GlassToolbarIconButton(
+                icon = MiuixIcons.Regular.Refresh,
+                description = tr("重启作用域应用", "重启作用域应用"),
+                onClick = { open(PageId.RESTART_SCOPES) },
+            )
+        },
+    ) { padding, scroll ->
+        AppList(padding, scroll) {
+            item {
+                CategorySearchBar(
+                    query = query,
+                    expanded = expanded,
+                    onQueryChange = { query = it },
+                    onExpandedChange = { expanded = it },
+                    onCancel = { query = ""; expanded = false },
+                    collapsedFraction = scroll.state.collapsedFraction.coerceIn(0f, 1f),
+                )
+            }
+            if (normalizedQuery.isBlank()) {
+                item {
+                    CategoryGroup(
+                        title = tr("系统界面", "系统界面"),
+                        entries = listOf(
+                            CategoryPageEntry(tr("系统界面", "系统界面"), PageId.SHADE),
+                            CategoryPageEntry(tr("桌面", "桌面"), PageId.DESKTOP),
+                            CategoryPageEntry(tr("通知与超级岛", "通知与超级岛"), PageId.ISLAND),
+                            CategoryPageEntry(tr("状态栏与控制中心", "状态栏与控制中心"), PageId.STATUS),
+                            CategoryPageEntry(tr("锁屏", "锁屏"), PageId.LOCK),
+                        ),
+                        enabled = connected,
+                        open = open,
+                    )
+                }
+                item {
+                    CategoryGroup(
+                        title = tr("系统功能", "系统功能"),
+                        entries = listOf(
+                            CategoryPageEntry(tr("超级小爱输入法", "超级小爱输入法"), PageId.SUPER_XIAOAI),
+                            CategoryPageEntry(tr("相机与相册编辑", "相机与相册编辑"), PageId.CAMERA),
+                            CategoryPageEntry(tr("系统更新", "系统更新"), PageId.SYSTEM_UPDATE),
+                            CategoryPageEntry(tr("系统设置", "系统设置"), PageId.SYSTEM_SETTINGS),
+                            CategoryPageEntry(tr("背屏", "背屏"), PageId.REAR_SCREEN),
+                        ),
+                        enabled = connected,
+                        open = open,
+                    )
+                }
+                item {
+                    CategoryGroup(
+                        title = tr("其他", "其他"),
+                        entries = listOf(CategoryPageEntry(tr("其他", "其他"), PageId.OTHER)),
+                        enabled = connected,
+                        open = open,
+                    )
+                }
+            } else if (groupedItems.isEmpty()) {
+                item {
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        cornerRadius = 22.5.dp,
+                        insideMargin = PaddingValues(18.dp),
+                    ) {
+                        Text(
+                            tr("category_search_no_results", "没有找到匹配的设置项"),
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+            } else {
+                groupedItems.forEach { (scope, items) ->
+                    item {
+                        SmallTitle(
+                            tr(scope.title, scope.title),
+                            insideMargin = PaddingValues(start = 12.dp, top = 4.dp, end = 12.dp, bottom = 4.dp),
+                        )
+                        Card(Modifier.fillMaxWidth(), cornerRadius = 22.5.dp) {
+                            items.forEach { result ->
+                                ArrowPreference(
+                                    title = result.title,
+                                    summary = result.description,
+                                    enabled = connected,
+                                    onClick = { open(result.page) },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategorySearchBar(
+    query: String,
+    expanded: Boolean,
+    onQueryChange: (String) -> Unit,
+    onExpandedChange: (Boolean) -> Unit,
+    onCancel: () -> Unit,
+    collapsedFraction: Float,
+) {
+    val showCancel = expanded || query.isNotBlank()
+    val cancelAlpha by animateFloatAsState(
+        targetValue = if (showCancel) 1f else 0f,
+        animationSpec = tween(220, easing = FastOutSlowInEasing),
+        label = "categorySearchCancelAlpha",
+    )
+    val cancelBlur by animateFloatAsState(
+        targetValue = if (showCancel) 0f else 8f,
+        animationSpec = tween(220, easing = FastOutSlowInEasing),
+        label = "categorySearchCancelBlur",
+    )
+    SearchBar(
+        modifier = Modifier.fillMaxWidth()
+            .graphicsLayer {
+                val scale = 1f - .1f * collapsedFraction
+                scaleX = scale
+                scaleY = scale
+            }
+            .blur((4f * collapsedFraction).dp),
+        insideMargin = DpSize(0.dp, 0.dp),
+        inputField = {
+            InputField(
+                query = query,
+                onQueryChange = onQueryChange,
+                onSearch = { onExpandedChange(false) },
+                expanded = expanded,
+                onExpandedChange = onExpandedChange,
+                label = tr("category_search_placeholder", "搜索设置项名称、描述或作用域"),
+            )
+        },
+        expanded = expanded,
+        onExpandedChange = onExpandedChange,
+        outsideEndAction = {
+            AnimatedVisibility(
+                visible = showCancel,
+                enter = fadeIn(tween(220, easing = FastOutSlowInEasing)),
+                exit = fadeOut(tween(220, easing = FastOutSlowInEasing)),
+            ) {
+                Text(
+                    modifier = Modifier
+                        .padding(start = 12.dp)
+                        .graphicsLayer { alpha = cancelAlpha }
+                        .blur(cancelBlur.dp)
+                        .clickable(
+                            interactionSource = null,
+                            indication = null,
+                            onClick = onCancel,
+                        ),
+                    text = tr("取消", "取消"),
+                    color = MiuixTheme.colorScheme.primary,
+                )
+            }
+        },
+    ) {}
+}
+
+@Composable
+private fun CategoryGroup(
+    title: String,
+    entries: List<CategoryPageEntry>,
+    enabled: Boolean,
+    open: (PageId) -> Unit,
+) {
+    SmallTitle(
+        title,
+        insideMargin = PaddingValues(start = 12.dp, top = 4.dp, end = 12.dp, bottom = 4.dp),
+    )
+    Card(Modifier.fillMaxWidth(), cornerRadius = 22.5.dp) {
+        entries.forEach { entry ->
+            ArrowPreference(
+                title = entry.title,
+                enabled = enabled,
+                onClick = { open(entry.page) },
+            )
+        }
     }
 }
 
@@ -2611,11 +3026,38 @@ private fun Desktop(
     update: ((DockSettings) -> DockSettings) -> Unit,
     homeRecentsSettings: HomeRecentsSettings,
     updateHomeRecents: ((HomeRecentsSettings) -> HomeRecentsSettings) -> Unit,
+    homeFolderSettings: HomeFolderSettings,
+    updateHomeFolder: ((HomeFolderSettings) -> HomeFolderSettings) -> Unit,
+    homeMaterialSettings: HomeMaterialSettings,
+    updateHomeMaterial: ((HomeMaterialSettings) -> HomeMaterialSettings) -> Unit,
+    openPage: (PageId) -> Unit,
     back: () -> Unit,
 ) = AppPage(tr("桌面", "桌面"), back, restartScopes = setOf(ScopeApplication.DESKTOP)) { padding, scroll ->
     AppList(padding, scroll) {
         item {
             Group(tr("Dock 栏", "Dock 栏")) {
+                SwitchPreference(
+                    title = tr("Dock 栏图标垂直偏移", "Dock 栏图标垂直偏移"),
+                    summary = tr("负值向下，正值向上", "负值向下，正值向上"),
+                    checked = homeMaterialSettings.dockIcon.enabled,
+                    onCheckedChange = { enabled -> updateHomeMaterial { it.copy(dockIcon = it.dockIcon.copy(enabled = enabled)) } },
+                )
+                AnimatedVisibility(visible = homeMaterialSettings.dockIcon.enabled) {
+                    var offset by remember(homeMaterialSettings.dockIcon.offset) {
+                        mutableFloatStateOf(homeMaterialSettings.dockIcon.offset.toFloat())
+                    }
+                    EditableSliderPreference(
+                        title = tr("图标垂直偏移", "图标垂直偏移"),
+                        value = offset,
+                        valueText = tr("Dock 图标偏移数值", "%s dp").format(offset.roundToInt()),
+                        valueRange = -60f..30f, steps = 89, centerValue = 0f, defaultValue = 0f,
+                        onValueChange = { offset = it },
+                        onValueChangeFinished = {
+                            updateHomeMaterial { it.copy(dockIcon = it.dockIcon.copy(offset = offset.roundToInt().coerceIn(-60, 30))) }
+                        },
+                    )
+                }
+
                 SwitchPreference(
                     title = tr("为桌面添加 Dock", "为桌面添加 Dock"),
                     summary = tr("需要勾选\"系统框架\"作用域，初次使用需要重启手机", "需要勾选\"系统框架\"作用域，初次使用需要重启手机"),
@@ -2648,14 +3090,8 @@ private fun Desktop(
                         selectedIndex = settings.material,
                         onSelectedIndexChange = { value -> update { it.copy(material = value) } },
                     )
-                    ParameterIntSlide(tr("Dock 高度", "Dock 高度"), settings.height, 40..300, " dp", defaultValue = 150) { value ->
-                        update { it.copy(height = value) }
-                    }
                     ParameterIntSlide(tr("Dock 水平边距", "Dock 水平边距"), settings.margin, 0..150, " dp", defaultValue = 25) { value ->
                         update { it.copy(margin = value) }
-                    }
-                    ParameterIntSlide(tr("Dock 底部边距", "Dock 底部边距"), settings.bottom, 0..150, " dp", defaultValue = 15) { value ->
-                        update { it.copy(bottom = value) }
                     }
                     ParameterIntSlide(tr("Dock 圆角", "Dock 圆角"), settings.radius, 0..60, " dp", defaultValue = 30) { value ->
                         update { it.copy(radius = value) }
@@ -2705,7 +3141,61 @@ private fun Desktop(
             }
         }
         item {
-            Group(tr("多任务界面", "多任务界面")) {
+            Group(tr("桌面材质", "桌面材质")) {
+                SwitchPreference(
+                    title = tr("桌面材质调整", "桌面材质调整"),
+                    checked = homeMaterialSettings.enabled,
+                    onCheckedChange = { enabled -> updateHomeMaterial { it.copy(enabled = enabled) } },
+                )
+                AnimatedVisibility(visible = homeMaterialSettings.enabled) {
+                    ArrowPreference(title = tr("调整桌面材质", "调整桌面材质"), onClick = { openPage(PageId.DESKTOP_MATERIAL) })
+                }
+            }
+        }
+        item {
+            Group(tr("文件夹", "文件夹")) {
+                val columns = listOf(0, 4, 5, 6, HOME_FOLDER_CUSTOM_COLUMNS)
+                OverlayDropdownPreference(
+                    title = tr("自定义文件夹列数", "自定义文件夹列数"),
+                    items = listOf(tr("系统默认", "系统默认"), tr("4", "4"), tr("5", "5"), tr("6", "6"), tr("自定义", "自定义")),
+                    selectedIndex = columns.indexOf(homeFolderSettings.columns).coerceAtLeast(0),
+                    onSelectedIndexChange = { index ->
+                        updateHomeFolder { it.copy(columns = columns[index]) }
+                    },
+                )
+                AnimatedVisibility(visible = homeFolderSettings.columns == HOME_FOLDER_CUSTOM_COLUMNS) {
+                    ParameterIntSlide(
+                        tr("文件夹列数", "文件夹列数"), homeFolderSettings.customColumns,
+                        1..15, defaultValue = 3,
+                    ) { value -> updateHomeFolder { it.copy(customColumns = value) } }
+                }
+                var rowSpacing by remember(homeFolderSettings.rowSpacing) {
+                    mutableFloatStateOf(homeFolderSettings.rowSpacing.toFloat())
+                }
+                SwitchPreference(
+                    title = tr("自定义文件夹图标行间距", "自定义文件夹图标行间距"),
+                    checked = homeFolderSettings.rowSpacingEnabled,
+                    onCheckedChange = { enabled -> updateHomeFolder { it.copy(rowSpacingEnabled = enabled) } },
+                )
+                AnimatedVisibility(visible = homeFolderSettings.rowSpacingEnabled) {
+                    EditableSliderPreference(
+                        title = tr("文件夹图标行间距", "文件夹图标行间距"),
+                        value = rowSpacing,
+                        valueText = tr("文件夹行间距数值", "%s dp").format(rowSpacing.roundToInt()),
+                        valueRange = -20f..80f,
+                        steps = 99,
+                        centerValue = 0f,
+                        defaultValue = 0f,
+                        onValueChange = { rowSpacing = it },
+                        onValueChangeFinished = {
+                            updateHomeFolder { it.copy(rowSpacing = rowSpacing.roundToInt().coerceIn(-20, 80)) }
+                        },
+                    )
+                }
+            }
+        }
+        item {
+            Group(tr("多任务", "多任务")) {
                 OverlayDropdownPreference(
                     title = tr("隐藏多任务界面的清除按钮", "隐藏多任务界面的清除按钮"),
                     items = listOf(
@@ -2720,6 +3210,26 @@ private fun Desktop(
                         }
                     },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeMaterialPage(
+    settings: HomeMaterialSettings,
+    update: ((HomeMaterialSettings) -> HomeMaterialSettings) -> Unit,
+    back: () -> Unit,
+) = AppPage(tr("桌面材质调整", "桌面材质调整"), back, restartScopes = setOf(ScopeApplication.DESKTOP)) { padding, scroll ->
+    AppList(padding, scroll) {
+        item {
+            Group(tr("柔光玻璃", "柔光玻璃")) {
+                ParameterIntSlide(tr("模糊度", "模糊度"), settings.blur, 0..200, "%", defaultValue = 100) { value -> update { it.copy(blur = value) } }
+                ParameterIntSlide(tr("折射强度", "折射强度"), settings.refraction, 0..200, "%", defaultValue = 100) { value -> update { it.copy(refraction = value) } }
+                ParameterIntSlide(tr("柔光强度", "柔光强度"), settings.softLight, 0..200, "%", defaultValue = 100) { value -> update { it.copy(softLight = value) } }
+                ParameterIntSlide(tr("背景饱和度", "背景饱和度"), settings.saturation, 0..200, "%", defaultValue = 100) { value -> update { it.copy(saturation = value) } }
+                ParameterIntSlide(tr("背景亮度", "背景亮度"), settings.brightness, 0..200, "%", defaultValue = 100) { value -> update { it.copy(brightness = value) } }
+                ParameterIntSlide(tr("不透明度", "Opacity"), settings.opacity, 0..100, "%", defaultValue = 100) { value -> update { it.copy(opacity = value) } }
             }
         }
     }
@@ -3593,11 +4103,15 @@ private fun Detail(
     musicWhitelist: Set<String>,
     dockSettings: DockSettings,
     homeRecentsSettings: HomeRecentsSettings,
+    homeFolderSettings: HomeFolderSettings,
+    homeMaterialSettings: HomeMaterialSettings,
     airDropSettings: AirDropSettings,
     update: ((HookSettings) -> HookSettings) -> Unit,
     updateLockscreenCapsule: ((LockscreenCapsuleSettings) -> LockscreenCapsuleSettings) -> Unit,
     updateDock: ((DockSettings) -> DockSettings) -> Unit,
     updateHomeRecents: ((HomeRecentsSettings) -> HomeRecentsSettings) -> Unit,
+    updateHomeFolder: ((HomeFolderSettings) -> HomeFolderSettings) -> Unit,
+    updateHomeMaterial: ((HomeMaterialSettings) -> HomeMaterialSettings) -> Unit,
     updateCamera: ((CameraSettings) -> CameraSettings) -> Unit,
     updateDeviceProfile: ((DeviceProfileSettings) -> DeviceProfileSettings) -> Unit,
     updateAppearance: ((SettingsAppearanceSettings) -> SettingsAppearanceSettings) -> Unit,
@@ -3637,7 +4151,8 @@ private fun Detail(
 ) {
     when (page) {
         PageId.SHADE -> Shade(settings, update, presetActions, openPage, back)
-        PageId.DESKTOP -> Desktop(dockSettings, updateDock, homeRecentsSettings, updateHomeRecents, back)
+        PageId.DESKTOP -> Desktop(dockSettings, updateDock, homeRecentsSettings, updateHomeRecents, homeFolderSettings, updateHomeFolder, homeMaterialSettings, updateHomeMaterial, openPage, back)
+        PageId.DESKTOP_MATERIAL -> HomeMaterialPage(homeMaterialSettings, updateHomeMaterial, back)
         PageId.SHADE_PRESETS -> ShadePresets(settings, update, presetActions, back)
         PageId.SHADE_NOTIFICATION_ELEMENTS -> MaterialOverrideAdvancedPage(
             tr("通知元素", "通知元素"), settings.notificationElementsMaterial, false,
@@ -3668,7 +4183,10 @@ private fun Detail(
             if (value.shadeSettingsUnified) next.copy(notificationCenterBackgroundMaterial = it) else next
         } }
         PageId.GESTURE_HANDLE_STYLE -> GestureHandleStylePage(back)
-        PageId.ISLAND -> Island(settings, update, openPage, onRequestNotificationPermission, back)
+        PageId.ISLAND -> Island(openPage, onRequestNotificationPermission, back)
+        PageId.UNLOCK_ISLAND -> UnlockIslandPage(back)
+        PageId.NOTIFICATION_RESTRICTIONS -> NotificationRestrictions(back)
+        PageId.NOTIFICATION_MEDIA_CARD -> NotificationMediaCard(back)
         PageId.STATUS -> Status(settings, update, openPage, back)
         PageId.STATUS_SIGNAL_CUSTOMIZATION -> StatusSignalCustomization(settings, update, openPage, back)
         PageId.STATUS_SIGNAL_TUNING -> StatusSignalTuning(settings, update, back)
@@ -4436,7 +4954,10 @@ private fun Shade(
     val gesturePrefs = remember(context) { context.getSharedPreferences(REMOTE_PREFERENCE_GROUP, Context.MODE_PRIVATE) }
     val iosStore = remember(context) { IosNotificationCenterSettingsStore(context) }
     var iosSettings by remember { mutableStateOf(iosStore.settings) }
+    val iosOffsetStore = remember(context) { IosNotificationBottomOffsetSettingsStore(context) }
+    var iosOffsetDp by remember { mutableStateOf(iosOffsetStore.offsetDp) }
     LaunchedEffect(service) { service?.let(iosStore::syncRemote) }
+    LaunchedEffect(service) { service?.let(iosOffsetStore::syncRemote) }
     var hideGlobalGestureHandle by remember { mutableStateOf(gesturePrefs.getBoolean(KEY_HIDE_GLOBAL_GESTURE_HANDLE, false)) }
     LaunchedEffect(service) {
         service?.getRemotePreferences(REMOTE_PREFERENCE_GROUP)?.edit()
@@ -4494,10 +5015,13 @@ private fun Shade(
                 if (iosSettings.enabled) {
                     OverlayDropdownPreference(
                         title = tr("iosNotificationWallpaper", "通知中心壁纸来源"),
-                        items = listOf(tr("iosNotificationLockWallpaper", "锁屏壁纸"), tr("iosNotificationHomeWallpaper", "桌面壁纸")),
-                        selectedIndex = iosSettings.wallpaper,
+                        items = listOf(
+                            tr("iosNotificationLockWallpaper", "锁屏壁纸"),
+                            tr("iosNotificationNoWallpaper", "不显示壁纸"),
+                        ),
+                        selectedIndex = if (iosSettings.wallpaper == 2) 1 else 0,
                         onSelectedIndexChange = { source ->
-                            iosStore.update(service) { it.copy(wallpaper = source) }
+                            iosStore.update(service) { it.copy(wallpaper = if (source == 1) 2 else 0) }
                             iosSettings = iosStore.settings
                         },
                     )
@@ -4510,21 +5034,16 @@ private fun Shade(
                             iosSettings = iosStore.settings
                         },
                     )
-                    SwitchPreference(
-                        title = tr("iosNotificationGlassRefraction", "液态玻璃折射效果"),
-                        checked = iosSettings.glassRefraction,
-                        onCheckedChange = { enabled ->
-                            iosStore.update(service) { it.copy(glassRefraction = enabled) }
-                            iosSettings = iosStore.settings
-                        },
-                    )
-                    SwitchPreference(
-                        title = tr("iosNotificationGlassHdr", "折射高光 HDR 效果"),
-                        checked = iosSettings.glassHdr,
-                        onCheckedChange = { enabled ->
-                            iosStore.update(service) { it.copy(glassHdr = enabled) }
-                            iosSettings = iosStore.settings
-                        },
+                    EditableSliderPreference(
+                        title = tr("iosNotificationBottomOffset", "通知下沉底部偏移"),
+                        value = iosOffsetDp.toFloat(),
+                        valueText = if (iosOffsetDp > 0) "+$iosOffsetDp dp" else "$iosOffsetDp dp",
+                        valueRange = -30f..60f,
+                        steps = 89,
+                        defaultValue = 0f,
+                        centerValue = 0f,
+                        onValueChange = { iosOffsetDp = it.roundToInt().coerceIn(-30, 60) },
+                        onValueChangeFinished = { iosOffsetStore.update(service, iosOffsetDp) },
                     )
                 }
             }
@@ -5257,8 +5776,6 @@ private fun applyCompactColor(value: MaterialOverride, percent: Int): MaterialOv
 
 @Composable
 private fun Island(
-    s: HookSettings,
-    update: ((HookSettings) -> HookSettings) -> Unit,
     openPage: (PageId) -> Unit,
     onRequestNotificationPermission: () -> Unit,
     back: () -> Unit,
@@ -5269,12 +5786,21 @@ private fun Island(
 ) { p, scroll ->
     var showNormalNotificationDialog by remember { mutableStateOf(false) }
     var showFocusNotificationDialog by remember { mutableStateOf(false) }
+    val (s, update) = rememberNotificationIslandSettings()
     val context = LocalContext.current
     val service by HookApplication.service.collectAsStateWithLifecycle()
+    val widthStore = remember(context) { IslandWidthSettingsStore(context) }
+    var widthSettings by remember { mutableStateOf(widthStore.settings) }
     val smoothingStore = remember(context) { IslandSmoothingSettingsStore(context) }
     var smoothingSettings by remember { mutableStateOf(smoothingStore.settings) }
     val spacingStore = remember(context) { IslandSpacingSettingsStore(context) }
     var spacingSettings by remember { mutableStateOf(spacingStore.settings) }
+    val appearanceStore = remember(context) { DynamicIslandAppearanceSettingsStore(context) }
+    var appearanceSettings by remember { mutableStateOf(appearanceStore.settings) }
+    fun updateWidth(transform: (IslandWidthSettings) -> IslandWidthSettings) {
+        widthStore.update(service, transform)
+        widthSettings = widthStore.settings
+    }
     fun updateSpacing(transform: (IslandSpacingSettings) -> IslandSpacingSettings) {
         spacingStore.update(service, transform)
         spacingSettings = spacingStore.settings
@@ -5283,30 +5809,56 @@ private fun Island(
         smoothingStore.update(service, transform)
         smoothingSettings = smoothingStore.settings
     }
+    fun updateAppearance(transform: (DynamicIslandAppearanceSettings) -> DynamicIslandAppearanceSettings) {
+        appearanceStore.update(service, transform)
+        appearanceSettings = appearanceStore.settings
+    }
     LaunchedEffect(service) {
+        service?.let(widthStore::syncRemote)
+        widthSettings = widthStore.settings
         service?.let(smoothingStore::syncRemote)
         smoothingSettings = smoothingStore.settings
         service?.let(spacingStore::syncRemote)
         spacingSettings = spacingStore.settings
+        service?.let(appearanceStore::syncRemote)
+        appearanceSettings = appearanceStore.settings
     }
 
     AppList(p, scroll, 28) {
         item {
-                Card(Modifier.fillMaxWidth(), cornerRadius = 22.5.dp) {
+            Group(tr("islandCollapsedGroup", "超级岛收起时")) {
                 SwitchPreference(
-                    title = tr("hide_notification_mini_window_bar", "隐藏通知底部的小窗下拉提示线"),
-                    checked = s.hideNotificationMiniWindowBar,
-                    onCheckedChange = { value -> update { it.copy(hideNotificationMiniWindowBar = value) } },
+                    title = tr("islandCollapsedSmoothing", "平滑收起时的超级岛背景"),
+                    checked = smoothingSettings.enabled,
+                    onCheckedChange = { enabled -> updateSmoothing { it.copy(enabled = enabled) } },
                 )
+                AnimatedVisibility(visible = smoothingSettings.enabled) {
+                    ParameterIntSlide(
+                        title = tr("islandCollapsedSmoothingPercent", "收起时的超级岛背景平滑度"),
+                        value = smoothingSettings.percent,
+                        range = 0..100,
+                        suffix = "%",
+                        defaultValue = ISLAND_SMOOTHING_DEFAULT_PERCENT,
+                    ) { percent -> updateSmoothing { it.copy(percent = percent) } }
+                }
+                SwitchPreference(title = tr("islandWidthCustomization", "自定义岛宽度"), checked = widthSettings.enabled, onCheckedChange = { v -> updateWidth { it.copy(enabled = v) } })
+                if (widthSettings.enabled) {
+                    IntSlide(tr("\u5927\u5c9b\u6700\u5c0f\u5bbd\u5ea6", "\u5927\u5c9b\u6700\u5c0f\u5bbd\u5ea6"), widthSettings.bigMinWidth, ISLAND_BIG_WIDTH_RANGE, defaultValue = ISLAND_BIG_WIDTH_DEFAULT) { v -> updateWidth { it.copy(bigMinWidth = v) } }
+                    IntSlide(tr("\u5c0f\u5c9b\u6700\u5c0f\u5bbd\u5ea6", "\u5c0f\u5c9b\u6700\u5c0f\u5bbd\u5ea6"), widthSettings.smallMinWidth, ISLAND_SMALL_WIDTH_RANGE, defaultValue = ISLAND_SMALL_WIDTH_DEFAULT) { v -> updateWidth { it.copy(smallMinWidth = v) } }
+                }
                 SwitchPreference(
-                    title = tr("\u53bb\u9664\u7126\u70b9\u901a\u77e5\u4e0e\u8d85\u7ea7\u5c9b\u767d\u540d\u5355\u9650\u5236", "\u53bb\u9664\u7126\u70b9\u901a\u77e5\u4e0e\u8d85\u7ea7\u5c9b\u767d\u540d\u5355\u9650\u5236"),
-                    checked = s.removeFocusAndIslandWhitelistLimit,
-                    onCheckedChange = { value ->
-                        update { it.copy(removeFocusAndIslandWhitelistLimit = value) }
-                    },
+                    title = tr("small_island_media_icon_corner_radius", "收起时的媒体图标圆角"),
+                    checked = appearanceSettings.smallMediaIconCornerRadiusEnabled,
+                    onCheckedChange = { enabled -> updateAppearance { it.copy(smallMediaIconCornerRadiusEnabled = enabled) } },
                 )
-                SwitchPreference(title = tr("\u81ea\u5b9a\u4e49\u8d85\u7ea7\u5c9b\u957f\u5ea6", "\u81ea\u5b9a\u4e49\u8d85\u7ea7\u5c9b\u957f\u5ea6"), checked = s.islandEnabled, onCheckedChange = { v -> update { it.copy(islandEnabled = v) } })
-                if (s.islandEnabled) IntSlide(tr("\u6700\u5c0f\u5bbd\u5ea6", "\u6700\u5c0f\u5bbd\u5ea6"), s.islandWidth, 108..190, defaultValue = 108) { v -> update { it.copy(islandWidth = v) } }
+                AnimatedVisibility(visible = appearanceSettings.smallMediaIconCornerRadiusEnabled) {
+                    IntSlide(
+                        tr("small_island_media_icon_corner_radius", "收起时的媒体图标圆角"),
+                        appearanceSettings.smallMediaIconCornerRadius,
+                        -64..96,
+                        defaultValue = SMALL_ISLAND_MEDIA_ICON_CORNER_RADIUS_DEFAULT,
+                    ) { value -> updateAppearance { it.copy(smallMediaIconCornerRadius = value) } }
+                }
                 SwitchPreference(
                     title = tr("islandSpacingEnabled", "自定义大小岛间距"),
                     checked = spacingSettings.enabled,
@@ -5324,37 +5876,7 @@ private fun Island(
             }
         }
         item {
-            Group(tr("notification_simulation", "通知模拟")) {
-                ArrowPreference(
-                    title = tr("normal_notification_simulation", "普通通知模拟"),
-                    onClick = { showNormalNotificationDialog = true },
-                )
-                ArrowPreference(
-                    title = tr("focus_notification_simulation", "超级岛&焦点通知模拟"),
-                    onClick = { showFocusNotificationDialog = true },
-                )
-                ArrowPreference(
-                    title = tr("simulate_media_notification", "媒体通知模拟"),
-                    onClick = { openPage(PageId.SIMULATE_MEDIA_NOTIFICATION) },
-                )
-            }
-        }
-        item {
-            Group(tr("\u8d85\u7ea7\u5c9b\u80cc\u666f\u8c03\u6574", "\u8d85\u7ea7\u5c9b\u80cc\u666f\u8c03\u6574")) {
-                SwitchPreference(
-                    title = tr("islandCollapsedSmoothing", "平滑收起时的超级岛背景"),
-                    checked = smoothingSettings.enabled,
-                    onCheckedChange = { enabled -> updateSmoothing { it.copy(enabled = enabled) } },
-                )
-                AnimatedVisibility(visible = smoothingSettings.enabled) {
-                    ParameterIntSlide(
-                        title = tr("islandCollapsedSmoothingPercent", "收起时的超级岛背景平滑度"),
-                        value = smoothingSettings.percent,
-                        range = 0..100,
-                        suffix = "%",
-                        defaultValue = ISLAND_SMOOTHING_DEFAULT_PERCENT,
-                    ) { percent -> updateSmoothing { it.copy(percent = percent) } }
-                }
+            Group(tr("islandExpandedGroup", "超级岛展开时")) {
                 SwitchPreference(
                     title = tr("\u5c55\u5f00\u6001\u4e0b\u7684\u8d85\u7ea7\u5c9b\u80cc\u666f\u8c03\u6574", "\u5c55\u5f00\u6001\u4e0b\u7684\u8d85\u7ea7\u5c9b\u80cc\u666f\u8c03\u6574"),
                     checked = s.expandedIslandBackgroundEnabled,
@@ -5382,10 +5904,30 @@ private fun Island(
                         )
                     }
                 }
+                SwitchPreference(
+                    title = tr("media_island_info_vertical_offset", "调整超级岛歌曲信息行垂直定位"),
+                    checked = s.mediaIslandInfoVerticalOffsetEnabled,
+                    onCheckedChange = { enabled -> update { it.copy(mediaIslandInfoVerticalOffsetEnabled = enabled) } },
+                )
+                AnimatedVisibility(visible = s.mediaIslandInfoVerticalOffsetEnabled) {
+                IntSlide(tr("media_island_info_vertical_offset", "调整超级岛歌曲信息行垂直定位"), s.mediaIslandInfoVerticalOffset, -50..50, defaultValue = 0) { value ->
+                    update { it.copy(mediaIslandInfoVerticalOffset = value) }
+                }
+                }
+                SwitchPreference(
+                    title = tr("hide_media_island_source_icon", "隐藏媒体超级岛来源图标"),
+                    checked = s.hideMediaIslandSourceIcon,
+                    onCheckedChange = { value -> update { it.copy(hideMediaIslandSourceIcon = value) } },
+                )
+                SwitchPreference(
+                    title = tr("关闭媒体超级岛底部的氛围光感", "关闭媒体超级岛底部的氛围光感"),
+                    checked = s.disableMediaIslandBottomGlow,
+                    onCheckedChange = { value -> update { it.copy(disableMediaIslandBottomGlow = value) } },
+                )
             }
         }
         item {
-            Group(tr("notification_background_adjustments", "通知背景调整")) {
+            Group(tr("notificationGroup", "通知")) {
                 SwitchPreference(
                     title = tr("\u7edf\u4e00\u901a\u77e5\u80cc\u666f\u6750\u8d28", "\u7edf\u4e00\u901a\u77e5\u80cc\u666f\u6750\u8d28"),
                     checked = s.unifyNotificationMaterial,
@@ -5400,13 +5942,177 @@ private fun Island(
                         update { it.copy(headsUpNotificationSoftGlass = enabled) }
                     },
                 )
-                IntSlide(tr("notification_corner_radius_offset", "调整通知圆角大小"), s.notificationCornerRadiusOffset, -30..30, defaultValue = 0) { value ->
-                    update { it.copy(notificationCornerRadiusOffset = value) }
+                SwitchPreference(
+                    title = tr("notification_corner_radius_offset", "调整通知圆角大小"),
+                    checked = s.notificationCornerRadiusOffsetEnabled,
+                    onCheckedChange = { enabled -> update { it.copy(notificationCornerRadiusOffsetEnabled = enabled) } },
+                )
+                AnimatedVisibility(visible = s.notificationCornerRadiusOffsetEnabled) {
+                    IntSlide(tr("notification_corner_radius_offset", "调整通知圆角大小"), s.notificationCornerRadiusOffset, -30..30, defaultValue = 0) { value ->
+                        update { it.copy(notificationCornerRadiusOffset = value) }
+                    }
                 }
+                ArrowPreference(title = tr("通知限制去除", "通知限制去除"), onClick = { openPage(PageId.NOTIFICATION_RESTRICTIONS) })
+                ArrowPreference(title = tr("notificationMediaCard", "媒体卡片"), onClick = { openPage(PageId.NOTIFICATION_MEDIA_CARD) })
+                ArrowPreference(title = tr("unlockIslandPage", "解锁岛"), onClick = { openPage(PageId.UNLOCK_ISLAND) })
             }
         }
         item {
-            Group(tr("\u901a\u77e5\u9650\u5236\u53bb\u9664", "\u901a\u77e5\u9650\u5236\u53bb\u9664")) {
+            Group(tr("notification_simulation", "通知模拟")) {
+                ArrowPreference(
+                    title = tr("normal_notification_simulation", "普通通知模拟"),
+                    onClick = { showNormalNotificationDialog = true },
+                )
+                ArrowPreference(
+                    title = tr("focus_notification_simulation", "超级岛&焦点通知模拟"),
+                    onClick = { showFocusNotificationDialog = true },
+                )
+                ArrowPreference(
+                    title = tr("simulate_media_notification", "媒体通知模拟"),
+                    onClick = { openPage(PageId.SIMULATE_MEDIA_NOTIFICATION) },
+                )
+            }
+        }
+    }
+
+    if (showNormalNotificationDialog) {
+        NotificationSimulationDialog(
+            focus = false,
+            onRequestNotificationPermission = onRequestNotificationPermission,
+            onDismiss = { showNormalNotificationDialog = false },
+        )
+    }
+    if (showFocusNotificationDialog) {
+        NotificationSimulationDialog(
+            focus = true,
+            onRequestNotificationPermission = onRequestNotificationPermission,
+            onDismiss = { showFocusNotificationDialog = false },
+        )
+    }
+}
+
+@Composable
+private fun rememberNotificationIslandSettings(): Pair<NotificationIslandSettings, ((NotificationIslandSettings) -> NotificationIslandSettings) -> Unit> {
+    val context = LocalContext.current
+    val service by HookApplication.service.collectAsStateWithLifecycle()
+    val store = remember(context) { NotificationIslandSettingsStore(context) }
+    var settings by remember { mutableStateOf(store.settings) }
+    val onChanged = LocalNotificationSettingsChanged.current
+    DisposableEffect(store) {
+        val preferences = context.getSharedPreferences(REMOTE_PREFERENCE_GROUP, Context.MODE_PRIVATE)
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+            store.reload()
+            settings = store.settings
+        }
+        preferences.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+    LaunchedEffect(service) {
+        service?.let(store::syncRemote)
+        settings = store.settings
+    }
+    return settings to { transform ->
+        val before = store.settings
+        store.update(service, transform)
+        settings = store.settings
+        if (before != settings) onChanged()
+    }
+}
+
+@Composable
+private fun UnlockIslandPage(back: () -> Unit) = AppPage(
+    tr("unlockIslandPage", "解锁岛"),
+    back,
+    restartScopes = setOf(ScopeApplication.SYSTEM_UI),
+) { padding, scroll ->
+    val context = LocalContext.current
+    val faceUnlockStore = remember(context) { LockscreenFaceUnlockSettingsStore(context) }
+    val faceUnlockService by HookApplication.service.collectAsStateWithLifecycle()
+    var faceUnlockSettings by remember { mutableStateOf(faceUnlockStore.settings) }
+    fun updateFaceUnlock(transform: (LockscreenFaceUnlockSettings) -> LockscreenFaceUnlockSettings) {
+        faceUnlockStore.update(faceUnlockService, transform)
+        faceUnlockSettings = faceUnlockStore.settings
+    }
+    LaunchedEffect(faceUnlockService) {
+        faceUnlockService?.let(faceUnlockStore::syncRemote)
+        faceUnlockSettings = faceUnlockStore.settings
+    }
+    AppList(padding, scroll, 12) {
+        item {
+            Group(tr("unlockIslandPage", "解锁岛")) {
+                SwitchPreference(
+                    title = tr("disableFaceUnlockIcon", "禁用系统的人脸解锁图标"),
+                    checked = faceUnlockSettings.disableIcon,
+                    onCheckedChange = { value -> updateFaceUnlock { it.copy(disableIcon = value) } },
+                )
+                SwitchPreference(
+                    title = tr("faceUnlockIsland", "人脸解锁岛"),
+                    checked = faceUnlockSettings.unlockIsland,
+                    onCheckedChange = { value -> updateFaceUnlock { it.copy(unlockIsland = value) } },
+                )
+                SwitchPreference(
+                    title = tr("faceUnlockFirstFloat", "人脸解锁岛首次悬浮"),
+                    checked = faceUnlockSettings.firstFloat,
+                    onCheckedChange = { value -> updateFaceUnlock { it.copy(firstFloat = value) } },
+                )
+                SwitchPreference(
+                    title = tr("faceUnlockKeepUntilHidden", "人脸解锁成功后保持显示"),
+                    checked = faceUnlockSettings.keepUntilKeyguardHidden,
+                    onCheckedChange = { value -> updateFaceUnlock { it.copy(keepUntilKeyguardHidden = value) } },
+                )
+                OverlayDropdownPreference(
+                    title = tr("faceUnlockAnimationStyle", "人脸解锁岛动画"),
+                    items = listOf(
+                        tr("faceUnlockAnimationDefault", "默认"),
+                        tr("faceUnlockAnimationLock", "解锁锁动画"),
+                        tr("faceUnlockAnimationLock2", "解锁锁动画 2"),
+                    ),
+                    selectedIndex = when (faceUnlockSettings.animationStyle) {
+                        "lock" -> 1
+                        "lock_2" -> 2
+                        else -> 0
+                    },
+                    onSelectedIndexChange = { index ->
+                        updateFaceUnlock {
+                            it.copy(animationStyle = listOf("default", "lock", "lock_2")[index.coerceIn(0, 2)])
+                        }
+                    },
+                )
+                SwitchPreference(
+                    title = tr("unlockAllFocus", "解锁所有焦点通知与超级岛"),
+                    checked = faceUnlockSettings.unlockAllFocus,
+                    onCheckedChange = { value -> updateFaceUnlock { it.copy(unlockAllFocus = value) } },
+                )
+                SwitchPreference(
+                    title = tr("unlockFocusAuth", "解锁焦点通知认证限制"),
+                    checked = faceUnlockSettings.unlockFocusAuth,
+                    onCheckedChange = { value -> updateFaceUnlock { it.copy(unlockFocusAuth = value) } },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotificationRestrictions(back: () -> Unit) = AppPage(
+    tr("通知限制去除", "通知限制去除"), back, restartScopes = setOf(ScopeApplication.SYSTEM_UI),
+) { p, scroll ->
+    val (s, update) = rememberNotificationIslandSettings()
+    AppList(p, scroll) {
+        item {
+            Card(Modifier.fillMaxWidth(), cornerRadius = 22.5.dp) {
+                SwitchPreference(
+                    title = tr("hide_notification_mini_window_bar", "隐藏通知底部的小窗下拉提示线"),
+                    checked = s.hideNotificationMiniWindowBar,
+                    onCheckedChange = { value -> update { it.copy(hideNotificationMiniWindowBar = value) } },
+                )
+                SwitchPreference(
+                    title = tr("\u53bb\u9664\u7126\u70b9\u901a\u77e5\u4e0e\u8d85\u7ea7\u5c9b\u767d\u540d\u5355\u9650\u5236", "\u53bb\u9664\u7126\u70b9\u901a\u77e5\u4e0e\u8d85\u7ea7\u5c9b\u767d\u540d\u5355\u9650\u5236"),
+                    checked = s.removeFocusAndIslandWhitelistLimit,
+                    onCheckedChange = { value ->
+                        update { it.copy(removeFocusAndIslandWhitelistLimit = value) }
+                    },
+                )
                 SwitchPreference(
                     title = tr("\u4fdd\u7559\u901a\u77e5", "\u4fdd\u7559\u901a\u77e5"),
                     checked = s.keepNotifications,
@@ -5439,8 +6145,17 @@ private fun Island(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun NotificationMediaCard(back: () -> Unit) = AppPage(
+    tr("notificationMediaCard", "媒体卡片"), back, restartScopes = setOf(ScopeApplication.SYSTEM_UI),
+) { p, scroll ->
+    val (s, update) = rememberNotificationIslandSettings()
+    AppList(p, scroll) {
         item {
-            Group(tr("media_card_adjustments", "媒体卡片调整")) {
+            Card(Modifier.fillMaxWidth(), cornerRadius = 22.5.dp) {
                 SwitchPreference(
                     title = tr("removeDynamicIslandMediaMiniBarWhitelistLimit", "去除媒体控件下拉条白名单限制"),
                     checked = s.removeDynamicIslandMediaMiniBarWhitelistLimit,
@@ -5451,16 +6166,8 @@ private fun Island(
                     checked = s.hideSystemMediaSourceIcon,
                     onCheckedChange = { value -> update { it.copy(hideSystemMediaSourceIcon = value) } },
                 )
-                SwitchPreference(
-                    title = tr("hide_media_island_source_icon", "隐藏媒体超级岛来源图标"),
-                    checked = s.hideMediaIslandSourceIcon,
-                    onCheckedChange = { value -> update { it.copy(hideMediaIslandSourceIcon = value) } },
-                )
                 IntSlide(tr("system_media_info_vertical_offset", "调整系统媒体通知歌曲信息行垂直定位"), s.systemMediaInfoVerticalOffset, -50..50, defaultValue = 0) { value ->
                     update { it.copy(systemMediaInfoVerticalOffset = value) }
-                }
-                IntSlide(tr("media_island_info_vertical_offset", "调整超级岛歌曲信息行垂直定位"), s.mediaIslandInfoVerticalOffset, -50..50, defaultValue = 0) { value ->
-                    update { it.copy(mediaIslandInfoVerticalOffset = value) }
                 }
                 IntSlide(tr("media_title_artist_spacing", "媒体标题与艺术家行间距"), s.mediaTitleArtistSpacing, -30..30, defaultValue = 0) { value ->
                     update { it.copy(mediaTitleArtistSpacing = value) }
@@ -5468,28 +6175,8 @@ private fun Island(
                 IntSlide(tr("media_cover_corner_radius_offset", "调整媒体封面圆角大小"), s.mediaCoverCornerRadiusOffset, -30..30, defaultValue = 0) { value ->
                     update { it.copy(mediaCoverCornerRadiusOffset = value) }
                 }
-                SwitchPreference(
-                    title = tr("关闭媒体超级岛底部的氛围光感", "关闭媒体超级岛底部的氛围光感"),
-                    checked = s.disableMediaIslandBottomGlow,
-                    onCheckedChange = { value -> update { it.copy(disableMediaIslandBottomGlow = value) } },
-                )
             }
         }
-    }
-
-    if (showNormalNotificationDialog) {
-        NotificationSimulationDialog(
-            focus = false,
-            onRequestNotificationPermission = onRequestNotificationPermission,
-            onDismiss = { showNormalNotificationDialog = false },
-        )
-    }
-    if (showFocusNotificationDialog) {
-        NotificationSimulationDialog(
-            focus = true,
-            onRequestNotificationPermission = onRequestNotificationPermission,
-            onDismiss = { showFocusNotificationDialog = false },
-        )
     }
 }
 
@@ -6075,23 +6762,13 @@ private fun Lock(
     val clockHorizontalStore = remember(context) { LockscreenClockHorizontalSettingsStore(context) }
     val clockHorizontalService by HookApplication.service.collectAsStateWithLifecycle()
     var clockHorizontalEnabled by remember { mutableStateOf(clockHorizontalStore.enabled) }
-    val faceUnlockStore = remember(context) { LockscreenFaceUnlockSettingsStore(context) }
-    val faceUnlockService by HookApplication.service.collectAsStateWithLifecycle()
-    var faceUnlockSettings by remember { mutableStateOf(faceUnlockStore.settings) }
-    fun updateFaceUnlock(transform: (LockscreenFaceUnlockSettings) -> LockscreenFaceUnlockSettings) {
-        faceUnlockStore.update(faceUnlockService, transform)
-        faceUnlockSettings = faceUnlockStore.settings
-    }
     LaunchedEffect(clockHorizontalService) {
         clockHorizontalService?.let {
             clockHorizontalStore.syncRemote(it)
             clockHorizontalEnabled = clockHorizontalStore.enabled
         }
     }
-    LaunchedEffect(faceUnlockService) {
-        faceUnlockService?.let(faceUnlockStore::syncRemote)
-        faceUnlockSettings = faceUnlockStore.settings
-    }
+
     var showSaveWallpaperDialog by remember { mutableStateOf(false) }
     val pickEditorBackground = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -6286,16 +6963,7 @@ OverlayDropdownPreference(
                         update { it.copy(fingerprintHideMode = value) }
                     },
                 )
-                SwitchPreference(
-                    title = tr("disableFaceUnlockIcon", "禁用系统的人脸解锁图标"),
-                    checked = faceUnlockSettings.disableIcon,
-                    onCheckedChange = { value -> updateFaceUnlock { it.copy(disableIcon = value) } },
-                )
-                SwitchPreference(
-                    title = tr("faceUnlockIsland", "人脸解锁岛"),
-                    checked = faceUnlockSettings.unlockIsland,
-                    onCheckedChange = { value -> updateFaceUnlock { it.copy(unlockIsland = value) } },
-                )
+                ArrowPreference(title = tr("unlockIslandPage", "解锁岛"), onClick = { open(PageId.UNLOCK_ISLAND) })
             }
         }
         item {
@@ -8792,16 +9460,31 @@ private fun EditableSliderPreference(
     defaultValue: Float = valueRange.start,
     enabled: Boolean = true,
     modifier: Modifier = Modifier,
+    centerValue: Float? = null,
 ) {
     var showValueDialog by remember { mutableStateOf(false) }
+    // Asymmetric signed ranges still place their neutral value at the physical midpoint.
+    val center = centerValue?.takeIf { it > valueRange.start && it < valueRange.endInclusive }
+    val sliderValue = if (center == null) value else if (value <= center) {
+        .5f * (value - valueRange.start) / (center - valueRange.start)
+    } else {
+        .5f + .5f * (value - center) / (valueRange.endInclusive - center)
+    }
     MiuixSliderPreference(
-        value = value,
-        onValueChange = onValueChange,
+        value = sliderValue,
+        onValueChange = { position ->
+            val adjusted = if (center == null) position else if (position <= .5f) {
+                valueRange.start + position * 2f * (center - valueRange.start)
+            } else {
+                center + (position - .5f) * 2f * (valueRange.endInclusive - center)
+            }
+            onValueChange(if (center == null) adjusted else normalizeSliderValue(adjusted, valueRange, steps))
+        },
         onValueChangeFinished = onValueChangeFinished,
         title = title,
         valueText = valueText,
-        valueRange = valueRange,
-        steps = steps,
+        valueRange = if (center == null) valueRange else 0f..1f,
+        steps = if (center == null) steps else 0,
         enabled = enabled,
         modifier = modifier,
         onClick = if (enabled) ({ showValueDialog = true }) else null,
@@ -9833,13 +10516,6 @@ private fun openProjects() = listOf(
         "https://github.com/1812z/HyperIsland",
         tr("MIT License", "MIT License"),
     ),
-    OpenProject(
-        tr("HyperCeiler", "HyperCeiler"),
-        tr("Canary", "Canary"),
-        tr("HyperOS 4 Rust 桌面的 Dock 栏相关代码", "HyperOS 4 Rust 桌面的 Dock 栏相关代码"),
-        "https://github.com/ReChronoRain/HyperCeiler",
-        tr("AGPL-3.0/MIT License", "AGPL-3.0/MIT License"),
-    ),
 )
 
 @Composable
@@ -9892,6 +10568,11 @@ internal fun AppPage(
     val backdrop = rememberLayerBackdrop()
     val surface = MiuixTheme.colorScheme.surface
     val collapsedFraction = scroll.state.collapsedFraction.coerceIn(0f, 1f)
+    val topBarMaterialProgress by animateFloatAsState(
+        targetValue = collapsedFraction,
+        animationSpec = tween(280, easing = FastOutSlowInEasing),
+        label = "topBarMaterialProgress",
+    )
     CompositionLocalProvider(
         LocalToolbarBackdrop provides backdrop,
         LocalToolbarCollapsed provides collapsedFraction,
@@ -9906,11 +10587,11 @@ internal fun AppPage(
         topBar = {
             Box {
                 if (pageBackground != null) {
-                    ProgressiveBlurLayer(backdrop, collapsedFraction)
+                    ProgressiveBlurLayer(backdrop, topBarMaterialProgress)
                 } else if (isRuntimeShaderSupported()) {
                     Box(
                         Modifier.matchParentSize()
-                            .graphicsLayer { alpha = 1f - collapsedFraction }
+                            .graphicsLayer { alpha = 1f - topBarMaterialProgress }
                             .drawPlainBackdrop(
                                 backdrop = backdrop,
                                 shape = { androidx.compose.ui.graphics.RectangleShape },
@@ -9918,9 +10599,11 @@ internal fun AppPage(
                                 onDrawSurface = { drawRect(surface.copy(alpha = 0.55f)) }
                             )
                     )
-                    ProgressiveBlurLayer(backdrop, collapsedFraction)
+                    ProgressiveBlurLayer(backdrop, topBarMaterialProgress)
+                    CollapsedTopBarGradientLayer(surface, topBarMaterialProgress)
                 } else {
-                    Box(Modifier.matchParentSize().background(surface.copy(alpha = 0.82f * (1f - collapsedFraction))))
+                    Box(Modifier.matchParentSize().background(surface.copy(alpha = 0.82f * (1f - topBarMaterialProgress))))
+                    CollapsedTopBarGradientLayer(surface, topBarMaterialProgress)
                 }
                 if (compactTopBar) {
                     SmallTopAppBar(
@@ -10001,7 +10684,7 @@ private fun AboutAdvancedMaterialHeader(onLogoClick: () -> Unit, onVersionClick:
         val logoSize = width * (.94f / 3.91f) * 2.78f * .8f * .95f
         val textWidth = width * (2.97f / 3.91f)
         AndroidView(factory = { HyperCeilerBrandView(it) }, update = { view ->
-            view.configure(with(density) { logoSize.roundToPx() }, with(density) { textWidth.roundToPx() }, "${BuildConfig.VERSION_NAME} | ${BuildConfig.BUILD_DATE}", versionColor, dark, onLogoClick, onVersionClick)
+            view.configure(with(density) { logoSize.roundToPx() }, with(density) { textWidth.roundToPx() }, "${tr("Aikotoba", "Aikotoba")} | ${BuildConfig.VERSION_NAME}-${BuildConfig.BUILD_DATE}", versionColor, dark, onLogoClick, onVersionClick)
         }, modifier = Modifier.fillMaxSize())
     }
 }
@@ -10451,13 +11134,13 @@ private fun saveLanguagePacks(prefs: android.content.SharedPreferences, packs: L
 private fun BoxScope.ProgressiveBlurLayer(backdrop: LayerBackdrop, collapsedFraction: Float) {
     Box(
         Modifier.matchParentSize()
-            .expandDrawHeight(1.184625f)
+            .expandDrawHeight(TOP_BAR_MATERIAL_HEIGHT_FACTOR)
             .graphicsLayer { alpha = collapsedFraction }
             .drawPlainBackdrop(
                 backdrop = backdrop,
                 shape = { androidx.compose.ui.graphics.RectangleShape },
                 effects = {
-                    blur(16.dp.toPx())
+                    blur(10.dp.toPx())
                     runtimeShaderEffect(
                         key = "progressive-blur-alpha-mask",
                         shaderString = PROGRESSIVE_BLUR_ALPHA_MASK_SHADER,
@@ -10468,6 +11151,26 @@ private fun BoxScope.ProgressiveBlurLayer(backdrop: LayerBackdrop, collapsedFrac
     )
 }
 
+@Composable
+private fun BoxScope.CollapsedTopBarGradientLayer(surface: ComposeColor, progress: Float) {
+    if (progress <= 0f) return
+    Box(
+        Modifier
+            .matchParentSize()
+            .expandDrawHeight(TOP_BAR_MATERIAL_HEIGHT_FACTOR)
+            .graphicsLayer { alpha = progress }
+            .background(
+                Brush.verticalGradient(
+                    0f to surface.copy(alpha = 0.92f),
+                    0.72f to surface.copy(alpha = 0.18f),
+                    1f to ComposeColor.Transparent,
+                )
+            )
+    )
+}
+
+// Keep the progressive blur and gradient tint aligned to the same extended height.
+private const val TOP_BAR_MATERIAL_HEIGHT_FACTOR = 1.4926275f
 private const val TOOLBAR_GLASS_SURFACE_ALPHA = .80f
 internal val TOOLBAR_GLASS_BLUR_RADIUS = 2.dp
 private val TOOLBAR_GLASS_LENS_HEIGHT = 16.dp

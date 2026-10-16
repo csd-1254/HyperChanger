@@ -12,7 +12,7 @@ val releaseStoreFile = providers.gradleProperty("releaseStoreFile").orNull
 val releaseStorePassword = providers.gradleProperty("releaseStorePassword").orNull
 val releaseKeyAlias = providers.gradleProperty("releaseKeyAlias").orNull
 val releaseKeyPassword = providers.gradleProperty("releaseKeyPassword").orNull
-val buildDate = LocalDate.now().toString()
+val buildDate = LocalDate.now().toString().replace('-', '.')
 
 android {
     namespace = "btm.m.os4.systemuihook"
@@ -24,10 +24,18 @@ android {
         applicationId = "btm.m.os4.systemuihook"
         minSdk = 35
         targetSdk = 37
-        versionCode = 1020002
-        versionName = "1.2.0 RC2"
+        versionCode = 1020040
+        versionName = "1.2.0 Fix"
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
+        ndk { abiFilters += "arm64-v8a" }
 
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     signingConfigs {

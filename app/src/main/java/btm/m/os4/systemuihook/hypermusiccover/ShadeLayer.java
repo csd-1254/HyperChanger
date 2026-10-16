@@ -89,6 +89,10 @@ public final class ShadeLayer {
         return sIosEnabled;
     }
 
+    public static boolean iosWallpaperEnabled() {
+        return sIosEnabled && sIosWallpaper != 2;
+    }
+
     /** Includes the first native panel frame, before the hosted clock has been attached. */
     public static boolean iosNotificationPanelEnabled() {
         return sIosEnabled && !IOS.controlCenter && effectActive();
@@ -185,8 +189,8 @@ public final class ShadeLayer {
      * also fire when the opposite panel collapses, so they cannot determine ownership. */
     public static void onSwitchProgress(float progress, boolean switching) {
         if (!IOS.switchProgress(progress, switching)) return;
-        IosNotificationCenterPresentation.setSwitching(IOS.switching);
         if (!sIosEnabled) return;
+        IosNotificationCenterPresentation.setSwitching(IOS.switching);
         cancelIosSettle();
         applyIosProgress();
     }
@@ -213,21 +217,40 @@ public final class ShadeLayer {
         }
         ensurePlacement();
         syncShown();
+        boolean showWallpaper = iosWallpaperEnabled();
+        IosNotificationCenterPresentation.setWallpaperEnabled(showWallpaper);
         float visual = IOS.progress * IOS.switchFraction;
         // Both effects are driven by the finger/native switch animator, without another spring.
         float opacity = visual * visual * (3f - 2f * visual);
         sFrame.setAlpha(opacity);
         sFrame.setVisibility(View.VISIBLE);
-        sEffectOn = true;
-        int blur = Math.round(28f * sFrame.getResources().getDisplayMetrics().density * (1f - visual));
+        sEffectOn = showWallpaper;
+        boolean landscape = isLandscapeFrame();
+        // Landscape uses a deliberately quiet background: zoom the wallpaper slightly so the
+        // whole source image is not presented edge-to-edge, then keep a soft Gaussian blur even
+        // after the panel is fully open. Portrait retains the original sharp-at-rest behavior.
+        float wallpaperScale = landscape ? 1.12f : 1f;
+        if (sWp != null) {
+            if (sWp.getScaleX() != wallpaperScale) sWp.setScaleX(wallpaperScale);
+            if (sWp.getScaleY() != wallpaperScale) sWp.setScaleY(wallpaperScale);
+        }
+        float density = sFrame.getResources().getDisplayMetrics().density;
+        int blur = landscape
+                ? Math.round((22f + 14f * (1f - visual)) * density)
+                : Math.round(28f * density * (1f - visual));
         if (sWp != null && sLastWpBlur != blur) {
             sWp.setRenderEffect(blur == 0 ? null : android.graphics.RenderEffect.createBlurEffect(
                     blur, blur, android.graphics.Shader.TileMode.CLAMP));
             sLastWpBlur = blur;
         }
         applyCurtain(IOS.progress);
-        IosShadeMaterial.setActive(true, sRoot);
+        IosShadeMaterial.setActive(showWallpaper, sRoot);
         IosNotificationCenterPresentation.update(visual, IOS.progress, true, sFrame);
+    }
+
+    private static boolean isLandscapeFrame() {
+        return sFrame != null && sFrame.getWidth() > 0 && sFrame.getHeight() > 0
+                && sFrame.getWidth() > sFrame.getHeight();
     }
     private static android.content.SharedPreferences sPreferences;
     private static final android.content.SharedPreferences.OnSharedPreferenceChangeListener PREFS_CHANGED =
@@ -235,8 +258,7 @@ public final class ShadeLayer {
                 if (btm.m.os4.systemuihook.newnotificationcenter.IosNotificationCenterSettingsKt.KEY_IOS_NOTIFICATION_CENTER.equals(key)
                         || btm.m.os4.systemuihook.newnotificationcenter.IosNotificationCenterSettingsKt.KEY_IOS_NOTIFICATION_WALLPAPER.equals(key)
                         || btm.m.os4.systemuihook.newnotificationcenter.IosNotificationCenterSettingsKt.KEY_IOS_NOTIFICATION_HIDE_CLEAR.equals(key)
-                        || btm.m.os4.systemuihook.newnotificationcenter.IosNotificationCenterSettingsKt.KEY_IOS_NOTIFICATION_GLASS_REFRACTION.equals(key)
-                        || btm.m.os4.systemuihook.newnotificationcenter.IosNotificationCenterSettingsKt.KEY_IOS_NOTIFICATION_GLASS_HDR.equals(key)) {
+                        || btm.m.os4.systemuihook.newnotificationcenter.IosNotificationBottomOffsetSettingsKt.KEY_IOS_NOTIFICATION_BOTTOM_OFFSET.equals(key)) {
                     UI.post(() -> readPreferences(prefs));
                 }
             };
@@ -250,25 +272,26 @@ public final class ShadeLayer {
     private static void readPreferences(android.content.SharedPreferences prefs) {
         boolean enabled = prefs.getBoolean(
                 btm.m.os4.systemuihook.newnotificationcenter.IosNotificationCenterSettingsKt.KEY_IOS_NOTIFICATION_CENTER, false);
-        int source = Math.max(0, Math.min(1, prefs.getInt(
-                btm.m.os4.systemuihook.newnotificationcenter.IosNotificationCenterSettingsKt.KEY_IOS_NOTIFICATION_WALLPAPER, 0)));
+        int source = btm.m.os4.systemuihook.newnotificationcenter.IosNotificationCenterSettingsKt
+                .normalizeIosNotificationWallpaper(prefs.getInt(
+                btm.m.os4.systemuihook.newnotificationcenter.IosNotificationCenterSettingsKt.KEY_IOS_NOTIFICATION_WALLPAPER, 0));
         boolean hideClear = prefs.getBoolean(
                 btm.m.os4.systemuihook.newnotificationcenter.IosNotificationCenterSettingsKt.KEY_IOS_NOTIFICATION_HIDE_CLEAR, false);
-        boolean glassRefraction = prefs.getBoolean(
-                btm.m.os4.systemuihook.newnotificationcenter.IosNotificationCenterSettingsKt.KEY_IOS_NOTIFICATION_GLASS_REFRACTION, true);
-        boolean glassHdr = prefs.getBoolean(
-                btm.m.os4.systemuihook.newnotificationcenter.IosNotificationCenterSettingsKt.KEY_IOS_NOTIFICATION_GLASS_HDR, false);
         IosNotificationCenterPresentation.setHideClearButton(hideClear);
-        IosNotificationCenterPresentation.setGlassFeatures(glassRefraction, glassHdr);
+        IosNotificationCenterPresentation.setNotificationBottomOffset(
+                btm.m.os4.systemuihook.newnotificationcenter.IosNotificationBottomOffsetSettingsKt
+                        .readIosNotificationBottomOffset(prefs));
         if (enabled == sIosEnabled && source == sIosWallpaper) return;
         reset();
         if (sEffectOn) Main.setCardBlurActive(false);
         sEffectOn = false;
         sIosEnabled = enabled;
+        if (!enabled) IosNotificationCenterPresentation.onFeatureDisabled();
         sIosWallpaper = source;
+        IosNotificationCenterPresentation.setWallpaperEnabled(source != 2);
         Main.invalidateShadeWallpaper();
         if (enabled) {
-            Main.requestShadeWallpaper();
+            if (source != 2) Main.requestShadeWallpaper();
             if (sFrame != null) {
                 ensurePlacement();
                 sFrame.setVisibility(View.INVISIBLE);
@@ -400,6 +423,14 @@ public final class ShadeLayer {
 
             sFrame = frame;
             sWp = wp;
+            frame.addOnLayoutChangeListener((view, left, top, right, bottom,
+                    oldLeft, oldTop, oldRight, oldBottom) -> {
+                if (sFrame == view && sIosEnabled && IOS.progress > 0f
+                        && (right - left != oldRight - oldLeft
+                        || bottom - top != oldBottom - oldTop)) {
+                    applyIosProgress();
+                }
+            });
             IosNotificationCenterPresentation.attach(root);
             // The blur providers are built during startup and the shade window may come after
             // them, so the identity rule gets a second chance now that there is something to
@@ -577,6 +608,7 @@ public final class ShadeLayer {
         if (!Main.screenOnCached()) return false;
         if (Main.keyguardLocked()) return false;
         if (sIosEnabled) {
+            if (sIosWallpaper == 2) return true;
             // Until an eligible wallpaper is ready, keep the platform background intact.
             if (sWallpaper == null) Main.requestShadeWallpaper();
             return sWallpaper != null && !sWallpaper.isRecycled();
@@ -600,6 +632,7 @@ public final class ShadeLayer {
      */
     private static android.graphics.Bitmap background() {
         if (sIosEnabled) {
+            if (sIosWallpaper == 2) return null;
             if (sWallpaper == null) Main.requestShadeWallpaper();
             return sWallpaper;
         }
@@ -647,6 +680,7 @@ public final class ShadeLayer {
         if (want == sShown) return;
         sShown = want;
         wp.setBackgroundColor(0);
+        wp.setScaleType(ImageView.ScaleType.CENTER_CROP);
         wp.setImageBitmap(want);
         // A new picture needs its blur built again - the effect belongs to the drawable, not to
         // the view. Without this a track change mid-pull would swap in a sharp cover.
@@ -1410,6 +1444,8 @@ public final class ShadeLayer {
         }
         if (wp != null) {
             wp.setTranslationY(0f);
+            wp.setScaleX(1f);
+            wp.setScaleY(1f);
             wp.setRenderEffect(null);
         }
         // Cleared with the effect, or the next pull-down would decide the radius it wants is

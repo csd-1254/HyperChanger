@@ -4,9 +4,9 @@ package btm.m.os4.systemuihook
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam
 import io.github.libxposed.service.XposedService
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import android.util.Log
@@ -43,14 +43,26 @@ internal class HomeRecentsSettingsStore(private val context: Context) {
         settings = if (remote.contains(KEY_HOME_RECENTS_CLEAR_MODE)) read(remote) else settings
         write(local, settings)
         write(remote, settings)
-        stageHomeRecentsNativeConfig(context, settings)
+        stageHomeRecentsNativeConfig(
+            context,
+            settings,
+            readHomeFolderSettings(local),
+            readHomeMaterialSettings(local),
+            readHomeNativeDockSettings(local),
+        )
     }
 
     fun update(service: XposedService?, transform: (HomeRecentsSettings) -> HomeRecentsSettings): Boolean {
         settings = transform(settings)
         write(local, settings)
         service?.getRemotePreferences(REMOTE_PREFERENCE_GROUP)?.let { write(it, settings) }
-        return stageHomeRecentsNativeConfig(context, settings)
+        return stageHomeRecentsNativeConfig(
+            context,
+            settings,
+            readHomeFolderSettings(local),
+            readHomeMaterialSettings(local),
+            readHomeNativeDockSettings(local),
+        )
     }
 
     private fun read(prefs: SharedPreferences) = readHomeRecentsSettings(prefs)
@@ -71,10 +83,17 @@ internal fun readHomeRecentsSettings(prefs: SharedPreferences) = HomeRecentsSett
  * Feature 18 hides the clear button while retaining its action; feature
  * 9 removes both the button and its action.
  */
-internal fun syncHomeRecentsNativeConfig(param: PackageLoadedParam, settings: HomeRecentsSettings) {
+internal fun syncHomeRecentsNativeConfig(
+    param: PackageLoadedParam,
+    settings: HomeRecentsSettings,
+    folderSettings: HomeFolderSettings,
+    materialSettings: HomeMaterialSettings = HomeMaterialSettings(),
+    nativeDock: HomeNativeDockSettings = HomeNativeDockSettings(),
+    multiSplitSettings: HomeMultiSplitSettings = HomeMultiSplitSettings(),
+) {
     val dataDir = param.applicationInfo.dataDir ?: return
     val target = File(dataDir, "files/hyperpatch.bin")
-    val blob = buildHomeRecentsBlob(settings.clearMode)
+    val blob = buildHomeLauncherBlob(settings.clearMode.value, folderSettings.effectiveColumns, folderSettings.rowSpacing, folderSettings.rowSpacingEnabled, materialSettings, nativeDock, multiSplitSettings.enabled)
     runCatching {
         target.parentFile?.mkdirs()
         val temp = File(target.parentFile, "${target.name}.tmp")
@@ -90,40 +109,45 @@ internal fun syncHomeRecentsNativeConfig(param: PackageLoadedParam, settings: Ho
     }
 }
 
-internal fun stageHomeRecentsNativeConfig(context: Context, settings: HomeRecentsSettings): Boolean = runCatching {
-    val source = File(context.filesDir, "hyperpatch.bin")
-    FileOutputStream(source).use { it.write(buildHomeRecentsBlob(settings.clearMode)); it.fd.sync() }
-    val destination = "/data/adb/hyperpatch.bin"
-    val staged = "$destination.tmp"
-    val command = "cp '${source.absolutePath}' '$staged' && chmod 644 '$staged' && mv '$staged' '$destination'"
-    val process = ProcessBuilder("su", "-c", command).redirectErrorStream(true).start()
+internal fun stageHomeRecentsNativeConfig(
+    context: Context,
+    settings: HomeRecentsSettings,
+    folderSettings: HomeFolderSettings = readHomeFolderSettings(
+        context.getSharedPreferences(REMOTE_PREFERENCE_GROUP, Context.MODE_PRIVATE),
+    ),
+    materialSettings: HomeMaterialSettings = readHomeMaterialSettings(
+        context.getSharedPreferences(REMOTE_PREFERENCE_GROUP, Context.MODE_PRIVATE),
+    ),
+    nativeDock: HomeNativeDockSettings = readHomeNativeDockSettings(
+        context.getSharedPreferences(REMOTE_PREFERENCE_GROUP, Context.MODE_PRIVATE),
+    ),
+    multiSplitSettings: HomeMultiSplitSettings = readLocalHomeMultiSplitSettings(context),
+): Boolean = runCatching {
+    val blob = buildHomeLauncherBlob(settings.clearMode.value, folderSettings.effectiveColumns, folderSettings.rowSpacing, folderSettings.rowSpacingEnabled, materialSettings, nativeDock, multiSplitSettings.enabled)
+    // The Rust launcher cannot reliably read /data/adb, and its native startup
+    // can precede Java package callbacks. Stage the complete config directly in
+    // its own data directory with the launcher's UID and SELinux file context.
+    val launcherDataDir = context.packageManager.getApplicationInfo(
+        "com.miui.home", PackageManager.ApplicationInfoFlags.of(0),
+    ).dataDir ?: error("Launcher data directory unavailable")
+    val command = buildHomeLauncherStageCommand(launcherDataDir, blob.size, if (multiSplitSettings.enabled) 6 else 3)
+    // Android app-data isolation hides other apps' directories in our mount
+    // namespace, even after gaining UID 0. Magisk/KernelSU -M uses the global one.
+    val process = ProcessBuilder("su", "-M", "-c", command).redirectErrorStream(true).start()
+    val transfer = runCatching { process.outputStream.use { it.write(blob) } }
     val output = process.inputStream.bufferedReader().use { it.readText() }
-    check(process.waitFor() == 0) { output }
+    val exitCode = process.waitFor()
+    check(exitCode == 0) { "Root config transport for $launcherDataDir exited $exitCode: $output" }
+    transfer.getOrThrow()
+    runCatching { File(context.filesDir, "home-config-write.log").writeText("${System.currentTimeMillis()}: Config staged successfully\n") }
     true
-}.onFailure { Log.w("HyperChangerHomeRecents", "Could not stage native launcher config", it) }
-    .getOrDefault(false)
-
-private fun buildHomeRecentsBlob(mode: HomeRecentsClearMode): ByteArray {
-    val output = ByteArrayOutputStream(144)
-    fun u32(value: Int) {
-        output.write(value and 0xff)
-        output.write((value ushr 8) and 0xff)
-        output.write((value ushr 16) and 0xff)
-        output.write((value ushr 24) and 0xff)
+}.onFailure {
+    Log.w("HyperChangerHomeRecents", "Could not stage native launcher config", it)
+    // Persist diagnostics even on devices that suppress app logcat messages.
+    runCatching {
+        File(context.filesDir, "home-config-write.log").writeText(
+            "${System.currentTimeMillis()}: Config staging failed\n${it.stackTraceToString()}\n",
+        )
     }
-    output.write(byteArrayOf('H'.code.toByte(), 'P'.code.toByte(), 'C'.code.toByte(), 'F'.code.toByte()))
-    u32(18)
-    u32(if (mode == HomeRecentsClearMode.NONE) 0 else 1)
-    if (mode == HomeRecentsClearMode.NONE) {
-        u32(0)
-    } else {
-        u32(1)
-        u32(if (mode == HomeRecentsClearMode.HIDE_KEEP_FUNCTION) 18 else 9)
-    }
-    // Keep the remaining V18 fields at their stock/default values.
-    listOf(5, 8, 5, 5, 8, 5, 0, 112, 0, 0, 0).forEach(::u32)
-    repeat(12) { u32(0) }
-    u32(0)
-    repeat(7) { u32(0) }
-    return output.toByteArray()
 }
+    .getOrDefault(false)
